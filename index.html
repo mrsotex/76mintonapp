@@ -700,7 +700,9 @@
       .touch-drag-ready {
         transform: scale(1.1) !important;
         box-shadow: 0 4px 16px rgba(102, 126, 234, 0.5) !important;
-        transition: transform 0.15s, box-shadow 0.15s !important;
+        transition:
+          transform 0.15s,
+          box-shadow 0.15s !important;
         position: relative;
         z-index: 10;
       }
@@ -908,6 +910,53 @@
     </div>
 
     <div class="container">
+      <!-- 코트 현황 (항상 표시) -->
+      <div class="section" id="sec-courts" style="display: none">
+        <h2>
+          코트 현황
+          <span class="hint-text desktop-hint">코트 제목 더블클릭 → 전원 대기 복귀</span>
+          <span class="hint-text touch-hint">제목 0.7초 길게 누르기 → 전원 복귀</span>
+        </h2>
+        <div class="courts-grid" id="courts-grid"></div>
+      </div>
+
+      <!-- 전체 인원 현황 -->
+      <div class="section">
+        <h2>전체 인원 현황</h2>
+
+        <!-- 대기 인원 -->
+        <div class="sub-section">
+          <div class="sub-header">
+            <span class="sub-title available-title">대기 인원</span>
+            <span class="sub-count" id="count-pool">0명</span>
+            <span class="hint-text desktop-hint"
+              >클릭: 선택 → 빈 자리 클릭으로 배정 &nbsp;/&nbsp; 드래그: 배정 &nbsp;/&nbsp; 더블클릭: 삭제</span
+            >
+            <span class="hint-text touch-hint"
+              >탭: 선택 → 빈 자리 탭으로 배정 &nbsp;/&nbsp; 0.7초 길게 누르기: 삭제</span
+            >
+          </div>
+          <div class="people-grid" id="pool-grid">
+            <div class="empty-msg">이름을 입력해서 인원을 추가하세요.</div>
+          </div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <!-- 코트 배정 인원 -->
+        <div class="sub-section">
+          <div class="sub-header">
+            <span class="sub-title assigned-title">코트 배정 인원</span>
+            <span class="sub-count" id="count-assigned">0명</span>
+            <span class="hint-text desktop-hint">더블클릭 → 대기로 복귀</span>
+            <span class="hint-text touch-hint">0.7초 길게 누르기 → 대기로 복귀</span>
+          </div>
+          <div class="people-grid" id="assigned-grid">
+            <div class="empty-msg">아직 배정된 인원이 없습니다.</div>
+          </div>
+        </div>
+      </div>
+
       <!-- 설정 패널 -->
       <div class="setup-panel">
         <div class="setup-row">
@@ -973,49 +1022,6 @@
         <button class="btn-sample" onclick="generateSampleData()">샘플 데이터 생성</button>
         <button class="btn-reset" onclick="resetAll()">초기화</button>
       </div>
-
-      <!-- 코트 현황 (항상 표시) -->
-      <div class="section" id="sec-courts" style="display: none">
-        <h2>
-          코트 현황
-          <span class="hint-text desktop-hint">코트 제목 더블클릭 → 전원 대기 복귀</span>
-          <span class="hint-text touch-hint">제목 0.7초 길게 누르기 → 전원 복귀</span>
-        </h2>
-        <div class="courts-grid" id="courts-grid"></div>
-      </div>
-
-      <!-- 전체 인원 현황 -->
-      <div class="section">
-        <h2>전체 인원 현황</h2>
-
-        <!-- 대기 인원 -->
-        <div class="sub-section">
-          <div class="sub-header">
-            <span class="sub-title available-title">대기 인원</span>
-            <span class="sub-count" id="count-pool">0명</span>
-            <span class="hint-text desktop-hint">클릭: 선택 → 빈 자리 클릭으로 배정 &nbsp;/&nbsp; 드래그: 배정 &nbsp;/&nbsp; 더블클릭: 삭제</span>
-            <span class="hint-text touch-hint">탭: 선택 → 빈 자리 탭으로 배정 &nbsp;/&nbsp; 0.7초 길게 누르기: 삭제</span>
-          </div>
-          <div class="people-grid" id="pool-grid">
-            <div class="empty-msg">이름을 입력해서 인원을 추가하세요.</div>
-          </div>
-        </div>
-
-        <div class="section-divider"></div>
-
-        <!-- 코트 배정 인원 -->
-        <div class="sub-section">
-          <div class="sub-header">
-            <span class="sub-title assigned-title">코트 배정 인원</span>
-            <span class="sub-count" id="count-assigned">0명</span>
-            <span class="hint-text desktop-hint">더블클릭 → 대기로 복귀</span>
-            <span class="hint-text touch-hint">0.7초 길게 누르기 → 대기로 복귀</span>
-          </div>
-          <div class="people-grid" id="assigned-grid">
-            <div class="empty-msg">아직 배정된 인원이 없습니다.</div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <script>
@@ -1031,12 +1037,16 @@
       function deselectAll() {
         selectedId = null;
         document.body.classList.remove('has-selection');
-        document.querySelectorAll('.p-badge.selected, .member-chip.selected')
-          .forEach(function(el) { el.classList.remove('selected'); });
+        document.querySelectorAll('.p-badge.selected, .member-chip.selected').forEach(function (el) {
+          el.classList.remove('selected');
+        });
       }
 
       function onClickPoolBadge(personId) {
-        if (selectedId === personId) { deselectAll(); return; }
+        if (selectedId === personId) {
+          deselectAll();
+          return;
+        }
         deselectAll();
         selectedId = personId;
         document.body.classList.add('has-selection');
@@ -1046,20 +1056,36 @@
 
       function onClickSlot(courtIdx, team) {
         if (selectedId === null) return;
-        const person = people.find(function(p) { return p.id === selectedId; });
-        if (!person) { deselectAll(); return; }
+        const person = people.find(function (p) {
+          return p.id === selectedId;
+        });
+        if (!person) {
+          deselectAll();
+          return;
+        }
         const court = courts[courtIdx];
         if (!court) return;
         const teamArr = team === 'A' ? court.teamA : court.teamB;
-        if (teamArr.length >= 2) { deselectAll(); return; }
+        if (teamArr.length >= 2) {
+          deselectAll();
+          return;
+        }
 
         if (person.status === 'available') {
-          pool = pool.filter(function(p) { return p.id !== selectedId; });
+          pool = pool.filter(function (p) {
+            return p.id !== selectedId;
+          });
         } else {
           const oc = courts[person.groupNo];
           if (oc) {
-            if (person.status === 'team-a') oc.teamA = oc.teamA.filter(function(p) { return p.id !== person.id; });
-            else oc.teamB = oc.teamB.filter(function(p) { return p.id !== person.id; });
+            if (person.status === 'team-a')
+              oc.teamA = oc.teamA.filter(function (p) {
+                return p.id !== person.id;
+              });
+            else
+              oc.teamB = oc.teamB.filter(function (p) {
+                return p.id !== person.id;
+              });
           }
         }
         person.status = team === 'A' ? 'team-a' : 'team-b';
@@ -1076,8 +1102,8 @@
         draggedId = tempId;
         const chip = document.querySelector('.member-chip[data-id="' + targetPersonId + '"]');
         onDropMember(
-          { preventDefault: function() {}, currentTarget: chip || { classList: { remove: function() {} } } },
-          targetPersonId
+          { preventDefault: function () {}, currentTarget: chip || { classList: { remove: function () {} } } },
+          targetPersonId,
         );
       }
 
@@ -1392,12 +1418,13 @@
         const court = courts[courtIdx];
         if (!court) return;
 
-        const males   = shuffle(pool.filter(p => p.gender === '남'));
-        const females = shuffle(pool.filter(p => p.gender === '여'));
+        const males = shuffle(pool.filter((p) => p.gender === '남'));
+        const females = shuffle(pool.filter((p) => p.gender === '여'));
         if (males.length === 0 || females.length === 0) return;
 
         const toAssign = [];
-        let mi = 0, fi = 0;
+        let mi = 0,
+          fi = 0;
 
         const fillTeam = (emptyCount, team) => {
           let needMale = true;
@@ -1419,14 +1446,14 @@
         fillTeam(2 - court.teamB.length, 'B');
 
         for (const { person, team } of toAssign) {
-          person.status  = team === 'A' ? 'team-a' : 'team-b';
+          person.status = team === 'A' ? 'team-a' : 'team-b';
           person.groupNo = courtIdx;
           if (team === 'A') court.teamA.push(person);
           else court.teamB.push(person);
         }
 
         const assignedIds = new Set(toAssign.map(({ person }) => person.id));
-        pool = pool.filter(p => !assignedIds.has(p.id));
+        pool = pool.filter((p) => !assignedIds.has(p.id));
         render();
       }
 
@@ -1522,17 +1549,42 @@
       /* ────── 샘플 데이터 생성 ────── */
       function generateSampleData() {
         const maleNames = [
-          '김민준', '이준호', '박지호', '최현우', '정우진',
-          '강민재', '조성훈', '윤지훈', '장태양', '한동현',
-          '임도현', '오승민', '서준혁', '신재원', '문현기',
+          '김민준',
+          '이준호',
+          '박지호',
+          '최현우',
+          '정우진',
+          '강민재',
+          '조성훈',
+          '윤지훈',
+          '장태양',
+          '한동현',
+          '임도현',
+          '오승민',
+          '서준혁',
+          '신재원',
+          '문현기',
         ];
         const femaleNames = [
-          '김지아', '이수연', '박민지', '최예진', '정하은',
-          '강지우', '조아라', '윤서연', '장나은', '한채원',
-          '임유진', '오소연', '서지현', '신다은', '문하늘',
+          '김지아',
+          '이수연',
+          '박민지',
+          '최예진',
+          '정하은',
+          '강지우',
+          '조아라',
+          '윤서연',
+          '장나은',
+          '한채원',
+          '임유진',
+          '오소연',
+          '서지현',
+          '신다은',
+          '문하늘',
         ];
         const levels = ['A', 'B', 'C', 'D', 'E'];
-        let mi = 0, fi = 0;
+        let mi = 0,
+          fi = 0;
 
         levels.forEach((level) => {
           for (let i = 0; i < 3; i++) {
@@ -1541,7 +1593,14 @@
             pool.push(p);
           }
           for (let i = 0; i < 3; i++) {
-            const p = { id: nextId++, name: femaleNames[fi++], gender: '여', level, status: 'available', groupNo: null };
+            const p = {
+              id: nextId++,
+              name: femaleNames[fi++],
+              gender: '여',
+              level,
+              status: 'available',
+              groupNo: null,
+            };
             people.push(p);
             pool.push(p);
           }
@@ -1747,7 +1806,9 @@
 
         // 클릭 선택 상태 복원 (render 후 DOM 재생성으로 사라진 .selected 재적용)
         if (selectedId !== null) {
-          const selP = people.find(function(x) { return x.id === selectedId; });
+          const selP = people.find(function (x) {
+            return x.id === selectedId;
+          });
           if (!selP || selP.status !== 'available') {
             deselectAll();
           } else {
@@ -1778,9 +1839,11 @@
         personId: null,
         el: null,
         ghost: null,
-        startX: 0, startY: 0,
-        lastX: 0,  lastY: 0,
-        ready: false,    // 300 ms 경과 → 드래그 준비 완료
+        startX: 0,
+        startY: 0,
+        lastX: 0,
+        lastY: 0,
+        ready: false, // 300 ms 경과 → 드래그 준비 완료
         dragging: false, // 실제 이동 중
         readyTimer: null,
         actionTimer: null,
@@ -1792,182 +1855,207 @@
         clearTimeout(ts.actionTimer);
         ts.readyTimer = null;
         ts.actionTimer = null;
-        if (ts.ghost) { ts.ghost.remove(); ts.ghost = null; }
-        if (ts.el) { ts.el.classList.remove('dragging', 'touch-drag-ready'); }
+        if (ts.ghost) {
+          ts.ghost.remove();
+          ts.ghost = null;
+        }
+        if (ts.el) {
+          ts.el.classList.remove('dragging', 'touch-drag-ready');
+        }
         document.body.classList.remove('is-dragging');
-        document.querySelectorAll('.p-badge.dragging, .member-chip.dragging')
-          .forEach(el => el.classList.remove('dragging'));
-        document.querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over')
-          .forEach(el => el.classList.remove('drag-over'));
+        document
+          .querySelectorAll('.p-badge.dragging, .member-chip.dragging')
+          .forEach((el) => el.classList.remove('dragging'));
+        document
+          .querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over')
+          .forEach((el) => el.classList.remove('drag-over'));
         draggedId = null;
-        ts.personId = null; ts.el = null;
-        ts.ready = false; ts.dragging = false; ts.longAction = null;
+        ts.personId = null;
+        ts.el = null;
+        ts.ready = false;
+        ts.dragging = false;
+        ts.longAction = null;
       }
 
-      document.addEventListener('touchstart', function(e) {
-        const draggable = e.target.closest('.p-badge.available, .member-chip');
-        const assigned  = !draggable && e.target.closest('.p-badge.team-a, .p-badge.team-b');
-        const hdr       = !draggable && !assigned && e.target.closest('.court-hdr[data-court-idx]');
-        if (!draggable && !assigned && !hdr) return;
+      document.addEventListener(
+        'touchstart',
+        function (e) {
+          const draggable = e.target.closest('.p-badge.available, .member-chip');
+          const assigned = !draggable && e.target.closest('.p-badge.team-a, .p-badge.team-b');
+          const hdr = !draggable && !assigned && e.target.closest('.court-hdr[data-court-idx]');
+          if (!draggable && !assigned && !hdr) return;
 
-        const t = e.touches[0];
-        ts.startX = ts.lastX = t.clientX;
-        ts.startY = ts.lastY = t.clientY;
-        ts.ready = ts.dragging = false;
+          const t = e.touches[0];
+          ts.startX = ts.lastX = t.clientX;
+          ts.startY = ts.lastY = t.clientY;
+          ts.ready = ts.dragging = false;
 
-        if (draggable || assigned) {
-          ts.el = draggable || assigned;
-          ts.personId = parseInt(ts.el.dataset.id);
+          if (draggable || assigned) {
+            ts.el = draggable || assigned;
+            ts.personId = parseInt(ts.el.dataset.id);
 
-          ts.longAction = (draggable && draggable.classList.contains('available'))
-            ? () => removePerson(ts.personId)
-            : () => returnFromCourt(ts.personId);
+            ts.longAction =
+              draggable && draggable.classList.contains('available')
+                ? () => removePerson(ts.personId)
+                : () => returnFromCourt(ts.personId);
 
-          // 300 ms → 드래그 준비 (draggable 요소만)
-          if (draggable) {
-            ts.readyTimer = setTimeout(function() {
-              if (!ts.dragging) {
-                ts.ready = true;
-                ts.el.classList.add('touch-drag-ready');
-                if (navigator.vibrate) navigator.vibrate(30);
+            // 300 ms → 드래그 준비 (draggable 요소만)
+            if (draggable) {
+              ts.readyTimer = setTimeout(function () {
+                if (!ts.dragging) {
+                  ts.ready = true;
+                  ts.el.classList.add('touch-drag-ready');
+                  if (navigator.vibrate) navigator.vibrate(30);
+                }
+              }, 300);
+            }
+
+            // 700 ms → 삭제 / 대기 복귀
+            ts.actionTimer = setTimeout(function () {
+              if (!ts.dragging && ts.longAction) {
+                if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+                var fn = ts.longAction;
+                tsCleanup();
+                fn();
               }
-            }, 300);
+            }, 700);
+          } else if (hdr) {
+            ts.el = hdr;
+            var ci = parseInt(hdr.dataset.courtIdx);
+            ts.actionTimer = setTimeout(function () {
+              if (!ts.dragging) {
+                if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+                tsCleanup();
+                returnAllFromCourt(ci);
+              }
+            }, 700);
           }
+        },
+        { passive: true },
+      );
 
-          // 700 ms → 삭제 / 대기 복귀
-          ts.actionTimer = setTimeout(function() {
-            if (!ts.dragging && ts.longAction) {
-              if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
-              var fn = ts.longAction;
+      document.addEventListener(
+        'touchmove',
+        function (e) {
+          if (!ts.el) return;
+          var t = e.touches[0];
+          var dx = t.clientX - ts.startX;
+          var dy = t.clientY - ts.startY;
+          var dist = Math.sqrt(dx * dx + dy * dy);
+          ts.lastX = t.clientX;
+          ts.lastY = t.clientY;
+
+          if (!ts.ready && !ts.dragging) {
+            if (dist > 8) {
+              // 준비 전 8 px 초과 이동 → 스크롤로 간주, 취소
               tsCleanup();
-              fn();
             }
-          }, 700);
-
-        } else if (hdr) {
-          ts.el = hdr;
-          var ci = parseInt(hdr.dataset.courtIdx);
-          ts.actionTimer = setTimeout(function() {
-            if (!ts.dragging) {
-              if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
-              tsCleanup();
-              returnAllFromCourt(ci);
-            }
-          }, 700);
-        }
-      }, { passive: true });
-
-      document.addEventListener('touchmove', function(e) {
-        if (!ts.el) return;
-        var t = e.touches[0];
-        var dx = t.clientX - ts.startX;
-        var dy = t.clientY - ts.startY;
-        var dist = Math.sqrt(dx * dx + dy * dy);
-        ts.lastX = t.clientX;
-        ts.lastY = t.clientY;
-
-        if (!ts.ready && !ts.dragging) {
-          if (dist > 8) {
-            // 준비 전 8 px 초과 이동 → 스크롤로 간주, 취소
-            tsCleanup();
+            return;
           }
-          return;
-        }
 
-        // 드래그 준비 완료 상태에서 실제 이동 시작
-        if (ts.ready && !ts.dragging && dist > 4 && ts.personId !== null) {
-          clearTimeout(ts.actionTimer); ts.actionTimer = null;
-          ts.dragging = true;
-          draggedId = ts.personId;
-          ts.el.classList.remove('touch-drag-ready');
-          ts.el.classList.add('dragging');
-          document.body.classList.add('is-dragging');
+          // 드래그 준비 완료 상태에서 실제 이동 시작
+          if (ts.ready && !ts.dragging && dist > 4 && ts.personId !== null) {
+            clearTimeout(ts.actionTimer);
+            ts.actionTimer = null;
+            ts.dragging = true;
+            draggedId = ts.personId;
+            ts.el.classList.remove('touch-drag-ready');
+            ts.el.classList.add('dragging');
+            document.body.classList.add('is-dragging');
 
-          var rect = ts.el.getBoundingClientRect();
-          ts.ghost = ts.el.cloneNode(true);
-          ts.ghost.style.cssText = [
-            'position:fixed',
-            'left:' + rect.left + 'px',
-            'top:' + rect.top + 'px',
-            'width:' + rect.width + 'px',
-            'margin:0',
-            'opacity:.75',
-            'pointer-events:none',
-            'z-index:9999',
-            'transform:scale(1.1)',
-            'box-shadow:0 8px 24px rgba(0,0,0,.25)',
-            'transition:none',
-          ].join(';');
-          document.body.appendChild(ts.ghost);
-        }
-
-        if (ts.dragging && ts.ghost) {
-          e.preventDefault();
-          var rect = ts.el.getBoundingClientRect();
-          ts.ghost.style.left = (rect.left + dx) + 'px';
-          ts.ghost.style.top  = (rect.top  + dy) + 'px';
-
-          // 드롭 대상 강조
-          ts.ghost.style.display = 'none';
-          var under = document.elementFromPoint(t.clientX, t.clientY);
-          ts.ghost.style.display = '';
-
-          document.querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over')
-            .forEach(function(el) { el.classList.remove('drag-over'); });
-
-          if (under) {
-            var slot = under.closest('.drop-slot[data-slot-court]');
-            var chip = under.closest('.member-chip[data-id]');
-            if (slot) slot.classList.add('drag-over');
-            else if (chip && parseInt(chip.dataset.id) !== ts.personId)
-              chip.classList.add('drag-over');
+            var rect = ts.el.getBoundingClientRect();
+            ts.ghost = ts.el.cloneNode(true);
+            ts.ghost.style.cssText = [
+              'position:fixed',
+              'left:' + rect.left + 'px',
+              'top:' + rect.top + 'px',
+              'width:' + rect.width + 'px',
+              'margin:0',
+              'opacity:.75',
+              'pointer-events:none',
+              'z-index:9999',
+              'transform:scale(1.1)',
+              'box-shadow:0 8px 24px rgba(0,0,0,.25)',
+              'transition:none',
+            ].join(';');
+            document.body.appendChild(ts.ghost);
           }
-        }
-      }, { passive: false });
 
-      document.addEventListener('touchend', function(e) {
-        clearTimeout(ts.readyTimer);
-        clearTimeout(ts.actionTimer);
+          if (ts.dragging && ts.ghost) {
+            e.preventDefault();
+            var rect = ts.el.getBoundingClientRect();
+            ts.ghost.style.left = rect.left + dx + 'px';
+            ts.ghost.style.top = rect.top + dy + 'px';
 
-        if (ts.dragging) {
-          e.preventDefault();
+            // 드롭 대상 강조
+            ts.ghost.style.display = 'none';
+            var under = document.elementFromPoint(t.clientX, t.clientY);
+            ts.ghost.style.display = '';
 
-          if (ts.ghost) ts.ghost.style.display = 'none';
-          var under = document.elementFromPoint(ts.lastX, ts.lastY);
-          if (ts.ghost) ts.ghost.style.display = '';
+            document.querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over').forEach(function (el) {
+              el.classList.remove('drag-over');
+            });
 
-          document.querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over')
-            .forEach(function(el) { el.classList.remove('drag-over'); });
-
-          var acted = false;
-          if (under) {
-            var slot = under.closest('.drop-slot[data-slot-court]');
-            var chip = under.closest('.member-chip[data-id]');
-            if (slot) {
-              onDropSlot(
-                { preventDefault: function(){}, currentTarget: slot },
-                parseInt(slot.dataset.slotCourt),
-                slot.dataset.slotTeam
-              );
-              acted = true;
-            } else if (chip && parseInt(chip.dataset.id) !== ts.personId) {
-              onDropMember(
-                { preventDefault: function(){}, currentTarget: chip },
-                parseInt(chip.dataset.id)
-              );
-              acted = true;
+            if (under) {
+              var slot = under.closest('.drop-slot[data-slot-court]');
+              var chip = under.closest('.member-chip[data-id]');
+              if (slot) slot.classList.add('drag-over');
+              else if (chip && parseInt(chip.dataset.id) !== ts.personId) chip.classList.add('drag-over');
             }
           }
-          if (!acted) onDragEnd();
-        }
+        },
+        { passive: false },
+      );
 
-        tsCleanup();
-      }, { passive: false });
+      document.addEventListener(
+        'touchend',
+        function (e) {
+          clearTimeout(ts.readyTimer);
+          clearTimeout(ts.actionTimer);
 
-      document.addEventListener('touchcancel', function() {
-        onDragEnd();
-        tsCleanup();
-      }, { passive: true });
+          if (ts.dragging) {
+            e.preventDefault();
+
+            if (ts.ghost) ts.ghost.style.display = 'none';
+            var under = document.elementFromPoint(ts.lastX, ts.lastY);
+            if (ts.ghost) ts.ghost.style.display = '';
+
+            document.querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over').forEach(function (el) {
+              el.classList.remove('drag-over');
+            });
+
+            var acted = false;
+            if (under) {
+              var slot = under.closest('.drop-slot[data-slot-court]');
+              var chip = under.closest('.member-chip[data-id]');
+              if (slot) {
+                onDropSlot(
+                  { preventDefault: function () {}, currentTarget: slot },
+                  parseInt(slot.dataset.slotCourt),
+                  slot.dataset.slotTeam,
+                );
+                acted = true;
+              } else if (chip && parseInt(chip.dataset.id) !== ts.personId) {
+                onDropMember({ preventDefault: function () {}, currentTarget: chip }, parseInt(chip.dataset.id));
+                acted = true;
+              }
+            }
+            if (!acted) onDragEnd();
+          }
+
+          tsCleanup();
+        },
+        { passive: false },
+      );
+
+      document.addEventListener(
+        'touchcancel',
+        function () {
+          onDragEnd();
+          tsCleanup();
+        },
+        { passive: true },
+      );
     </script>
   </body>
 </html>

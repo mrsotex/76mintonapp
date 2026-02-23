@@ -1618,7 +1618,7 @@
                                         ${isFull || maleInPool === 0 || femaleInPool === 0 ? 'disabled' : ''}
                                     >혼복</button>
                                     <button class="btn-court-delete"
-                                        onclick="event.stopPropagation(); deleteCourt(${ci})"
+                                        onclick="event.stopPropagation(); requirePassword(function(){ deleteCourt(${ci}) })"
                                         ondblclick="event.stopPropagation()"
                                         title="코트 삭제 (배정 인원 대기 복귀)"
                                     >✕</button>

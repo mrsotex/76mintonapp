@@ -220,6 +220,103 @@
         background: #43a047;
         color: white;
       }
+      .btn-fetch {
+        padding: 13px 22px;
+        background: white;
+        color: #0288d1;
+        border: 2px solid #0288d1;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+      .btn-fetch:hover:not(:disabled) {
+        background: #0288d1;
+        color: white;
+      }
+      .btn-fetch:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      /* ── DB 조회 결과 패널 ── */
+      .fetch-result-panel {
+        background: white;
+        border-radius: 14px;
+        padding: 16px 20px;
+        margin-bottom: 18px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        border-left: 4px solid #0288d1;
+      }
+      .fetch-result-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .fetch-result-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #0288d1;
+      }
+      .fetch-result-meta {
+        font-size: 0.8rem;
+        color: #888;
+      }
+      .fetch-result-error {
+        font-size: 0.85rem;
+        color: #ef5350;
+        background: #fff5f5;
+        border-radius: 8px;
+        padding: 10px 14px;
+        word-break: break-all;
+      }
+      .fetch-result-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        gap: 6px;
+      }
+      .fetch-result-item {
+        padding: 7px 6px;
+        border-radius: 8px;
+        text-align: center;
+        font-size: 0.8rem;
+        font-weight: 700;
+        border: 2px solid;
+      }
+      .fetch-result-item.gender-m {
+        background: #e3f2fd;
+        color: #1565c0;
+        border-color: #90caf9;
+      }
+      .fetch-result-item.gender-f {
+        background: #ffebee;
+        color: #b71c1c;
+        border-color: #ef9a9a;
+      }
+      .fetch-result-item .r-sub {
+        display: block;
+        font-size: 0.63rem;
+        font-weight: 400;
+        opacity: 0.8;
+        margin-top: 2px;
+      }
+      .btn-close-result {
+        padding: 4px 12px;
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        color: #666;
+      }
+      .btn-close-result:hover {
+        background: #eee;
+      }
 
       /* ── Section ── */
       .section {
@@ -795,6 +892,12 @@
           font-size: 0.9rem;
           white-space: normal;
         }
+        .btn-fetch {
+          flex: 1;
+          padding: 10px 8px;
+          font-size: 0.9rem;
+          white-space: normal;
+        }
         .btn-reset {
           padding: 10px 14px;
           font-size: 0.9rem;
@@ -1001,6 +1104,21 @@
         </div>
       </div>
 
+      <!-- DB 조회 결과 패널 -->
+      <div class="fetch-result-panel" id="fetch-result-panel" style="display: none">
+        <div class="fetch-result-header">
+          <span class="fetch-result-title">DB 조회 결과</span>
+          <span class="fetch-result-meta" id="fetch-result-meta"></span>
+          <button
+            class="btn-close-result"
+            onclick="document.getElementById('fetch-result-panel').style.display = 'none'"
+          >
+            닫기
+          </button>
+        </div>
+        <div id="fetch-result-body"></div>
+      </div>
+
       <!-- Stats -->
       <div class="stats">
         <div class="stat-card s-total">
@@ -1021,6 +1139,7 @@
       <div class="controls">
         <button class="btn-primary" id="btn-assign" onclick="assignCourts()" disabled>랜덤 배정</button>
         <button class="btn-sample" onclick="generateSampleData()">샘플 데이터 생성</button>
+        <button class="btn-fetch" id="btn-fetch" onclick="fetchMembers()">회원 가져오기</button>
         <button class="btn-reset" onclick="resetAll()">초기화</button>
       </div>
     </div>
@@ -1620,6 +1739,89 @@
         courtCount = 2;
         document.getElementById('court-input').value = '2';
         render();
+      }
+
+      /* ────── DB: 회원 가져오기 (버튼 클릭 → 기존 인원에 추가) ────── */
+      async function fetchMembers() {
+        const btn = document.getElementById('btn-fetch');
+        const panel = document.getElementById('fetch-result-panel');
+        const meta = document.getElementById('fetch-result-meta');
+        const body = document.getElementById('fetch-result-body');
+        const original = btn.textContent;
+
+        btn.disabled = true;
+        btn.textContent = '불러오는 중...';
+        panel.style.display = 'none';
+
+        const { data, error } = await db.from('members').select('id, name, gender, level').eq('is_active', true);
+
+        btn.disabled = false;
+        btn.textContent = original;
+
+        // ── 결과 패널 표시 ──
+        panel.style.display = 'block';
+
+        if (error) {
+          console.error('회원 조회 실패:', error);
+          meta.textContent = '조회 실패';
+          body.innerHTML = `<div class="fetch-result-error">
+            <strong>오류 코드:</strong> ${error.code || '-'}<br>
+            <strong>메시지:</strong> ${error.message}<br>
+            <strong>상세:</strong> ${error.details || '-'}
+          </div>`;
+          return;
+        }
+
+        // 이미 추가된 dbId 집합 (중복 방지)
+        const existingDbIds = new Set(people.filter((p) => p.dbId).map((p) => p.dbId));
+
+        let added = 0;
+        data.forEach((member) => {
+          if (existingDbIds.has(member.id)) return;
+          const p = {
+            id: nextId++,
+            dbId: member.id,
+            name: member.name,
+            gender: member.gender,
+            level: member.level,
+            status: 'available',
+            groupNo: null,
+          };
+          people.push(p);
+          pool.push(p);
+          added++;
+        });
+
+        render();
+
+        // ── 조회 결과 목록 렌더 ──
+        meta.textContent = `총 ${data.length}건 조회 · ${added}명 신규 추가`;
+
+        if (data.length === 0) {
+          body.innerHTML =
+            '<div class="fetch-result-error" style="color:#888;background:#f9f9f9">조회된 회원이 없습니다. (is_active = true 인 데이터 확인)</div>';
+        } else {
+          body.innerHTML =
+            '<div class="fetch-result-grid">' +
+            data
+              .map((m) => {
+                const gc = m.gender === '남' ? 'm' : 'f';
+                const isNew = !existingDbIds.has(m.id);
+                return `<div class="fetch-result-item gender-${gc}" title="${isNew ? '신규 추가' : '이미 존재'}${isNew ? '' : ' (중복)'}">
+                ${m.name}
+                <span class="r-sub">${m.gender} · ${m.level}급${isNew ? '' : ' ✓'}</span>
+              </div>`;
+              })
+              .join('') +
+            '</div>';
+        }
+
+        if (added > 0) {
+          btn.textContent = `✔ ${added}명 추가됨`;
+          setTimeout(() => {
+            btn.textContent = original;
+          }, 2000);
+        }
       }
 
       /* ────── DB: 회원마스터 로드 ────── */

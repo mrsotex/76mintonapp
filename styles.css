@@ -481,6 +481,21 @@
       .btn-court-assign.mixed:hover:not(:disabled) {
         background: rgba(103, 58, 183, 0.65);
       }
+      .btn-court-delete {
+        padding: 3px 8px;
+        background: rgba(183, 28, 28, 0.45);
+        color: white;
+        border: 1px solid rgba(239, 154, 154, 0.7);
+        border-radius: 5px;
+        font-size: 0.78rem;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s;
+        margin-left: 4px;
+      }
+      .btn-court-delete:hover {
+        background: rgba(183, 28, 28, 0.75);
+      }
 
       .court-body {
         display: flex;
@@ -937,6 +952,10 @@
           padding: 6px 4px;
           font-size: 0.72rem;
           text-align: center;
+        }
+        .btn-court-delete {
+          padding: 6px 8px;
+          font-size: 0.72rem;
         }
         /* 팀 박스 */
         .team-box {

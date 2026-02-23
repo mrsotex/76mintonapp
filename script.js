@@ -206,6 +206,28 @@
         syncState();
       }
 
+      /* ────── 코트 삭제 ────── */
+      function deleteCourt(courtIdx) {
+        const court = courts[courtIdx];
+        if (!court) return;
+        // 해당 코트 인원 전원 대기 복귀
+        [...court.teamA, ...court.teamB].forEach((p) => {
+          p.status = 'available';
+          p.groupNo = null;
+          pool.push(p);
+        });
+        // 코트 제거
+        courts.splice(courtIdx, 1);
+        courtCount = courts.length;
+        // 남은 코트 인원들의 groupNo 재정렬
+        courts.forEach((c, ci) => {
+          [...c.teamA, ...c.teamB].forEach((p) => { p.groupNo = ci; });
+        });
+        document.getElementById('court-input').value = courtCount || '';
+        render();
+        syncState();
+      }
+
       /* ────── 코트 전체 대기 복귀 (제목 더블클릭) ────── */
       function returnAllFromCourt(courtIdx) {
         const court = courts[courtIdx];
@@ -1116,6 +1138,11 @@
                                     ${isFull ? '✔ 완료' : `${total}/4명`}
                                     &nbsp;|&nbsp; 더블클릭 → 전원 복귀
                                 </span>
+                                <button class="btn-court-delete"
+                                    onclick="event.stopPropagation(); deleteCourt(${ci})"
+                                    ondblclick="event.stopPropagation()"
+                                    title="코트 삭제 (배정 인원 대기 복귀)"
+                                >✕</button>
                             </div>
                         </div>
                         <div class="court-body">

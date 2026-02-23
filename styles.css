@@ -437,8 +437,14 @@
       }
       .court-hdr-right {
         display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+      }
+      .court-hdr-btns {
+        display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
       }
 
       .btn-court-assign {
@@ -941,7 +947,10 @@
         }
         .court-hdr-right {
           width: 100%;
-          flex-wrap: wrap;
+          gap: 4px;
+        }
+        .court-hdr-btns {
+          width: 100%;
           gap: 4px;
         }
         .chint {
@@ -957,6 +966,16 @@
           padding: 6px 8px;
           font-size: 0.72rem;
         }
+        .ready-hdr {
+          flex-wrap: wrap;
+          gap: 4px;
+          padding: 8px 10px;
+        }
+        .btn-add-ready {
+          margin-left: 6px;
+          padding: 4px 10px;
+          font-size: 0.78rem;
+        }
         /* 팀 박스 */
         .team-box {
           padding: 10px 6px;
@@ -970,6 +989,78 @@
           padding: 6px 10px;
           font-size: 0.72rem;
         }
+      }
+
+      /* ── 게임준비 헤더 ── */
+      .ready-hdr {
+        background: linear-gradient(90deg, #00897b, #00695c);
+        color: white;
+        padding: 10px 14px;
+        font-size: 0.92rem;
+        font-weight: 700;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: grab;
+        user-select: none;
+        transition: background 0.2s;
+      }
+      .ready-hdr:active {
+        cursor: grabbing;
+      }
+      .ready-hdr:hover {
+        background: linear-gradient(90deg, #fb8c00, #f57c00);
+      }
+      .ready-hdr .chint {
+        font-size: 0.66rem;
+        opacity: 0.8;
+        font-weight: 400;
+      }
+
+      /* 게임준비 + 대기조 추가 버튼 */
+      .btn-add-ready {
+        padding: 4px 14px;
+        background: rgba(255, 255, 255, 0.15);
+        color: #3949ab;
+        border: 1.5px solid #9fa8da;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+        margin-left: 10px;
+        vertical-align: middle;
+        transition: all 0.15s;
+      }
+      .btn-add-ready:hover:not(:disabled) {
+        background: #3949ab;
+        color: white;
+        border-color: #3949ab;
+      }
+      .btn-add-ready:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      /* 그룹 드래그 중 코트 카드 강조 */
+      body.is-dragging-group .court-card {
+        outline: 2px dashed #00897b;
+        cursor: copy;
+      }
+      .court-card.group-drag-over {
+        outline: 3px solid #00897b !important;
+        background: #e0f2f1 !important;
+        transform: scale(1.02);
+        transition: all 0.15s;
+      }
+
+      /* 대기조 선택 상태 (터치) */
+      body.has-group-selection .court-card {
+        outline: 2px dashed #00897b;
+        cursor: pointer;
+      }
+      body.has-group-selection .court-card:hover {
+        outline: 3px solid #00897b;
+        background: #e0f2f1;
       }
 
       /* ── 클릭 선택 상태 ── */

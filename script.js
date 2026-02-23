@@ -16,6 +16,9 @@
       let nextId = 1;
       let draggedId = null;
       let selectedId = null; // 클릭 선택된 대기 인원 ID
+      let readyGroups = []; // 게임준비 대기조 (최대 10개) [{teamA:[], teamB:[]}]
+      let draggedGroupIdx = null; // 대기조 헤더 드래그 인덱스
+      let selectedGroupIdx = null; // 터치: 탭으로 선택된 대기조 인덱스
 
       /* ── 클릭 선택 관련 함수 ── */
       function deselectAll() {
@@ -24,6 +27,51 @@
         document.querySelectorAll('.p-badge.selected, .member-chip.selected').forEach(function (el) {
           el.classList.remove('selected');
         });
+      }
+
+      function deselectGroup() {
+        selectedGroupIdx = null;
+        document.body.classList.remove('has-group-selection');
+        document.querySelectorAll('.ready-card.group-selected').forEach(function (el) {
+          el.classList.remove('group-selected');
+        });
+      }
+
+      /* ── 헬퍼: 사람 현재 위치에서 제거 ── */
+      function _removePerson(p) {
+        if (p.status === 'available') {
+          pool = pool.filter(x => x.id !== p.id);
+        } else if (p.status === 'team-a' || p.status === 'team-b') {
+          const court = courts[p.groupNo];
+          if (court) {
+            if (p.status === 'team-a') court.teamA = court.teamA.filter(x => x.id !== p.id);
+            else court.teamB = court.teamB.filter(x => x.id !== p.id);
+          }
+        } else if (p.status === 'ready-a' || p.status === 'ready-b') {
+          const group = readyGroups[p.readyGroupNo];
+          if (group) {
+            if (p.status === 'ready-a') group.teamA = group.teamA.filter(x => x.id !== p.id);
+            else group.teamB = group.teamB.filter(x => x.id !== p.id);
+          }
+        }
+      }
+
+      /* ── 헬퍼: 사람 지정 위치에 배치 ── */
+      function _placePerson(p, status, groupNo, readyGroupNo) {
+        p.status = status;
+        p.groupNo = (groupNo != null) ? groupNo : null;
+        p.readyGroupNo = (readyGroupNo != null) ? readyGroupNo : null;
+        if (status === 'available') {
+          pool.push(p);
+        } else if (status === 'team-a' && groupNo != null) {
+          courts[groupNo].teamA.push(p);
+        } else if (status === 'team-b' && groupNo != null) {
+          courts[groupNo].teamB.push(p);
+        } else if (status === 'ready-a' && readyGroupNo != null) {
+          readyGroups[readyGroupNo].teamA.push(p);
+        } else if (status === 'ready-b' && readyGroupNo != null) {
+          readyGroups[readyGroupNo].teamB.push(p);
+        }
       }
 
       function onClickPoolBadge(personId) {
@@ -40,41 +88,31 @@
 
       function onClickSlot(courtIdx, team) {
         if (selectedId === null) return;
-        const person = people.find(function (p) {
-          return p.id === selectedId;
-        });
-        if (!person) {
-          deselectAll();
-          return;
-        }
+        const person = people.find(p => p.id === selectedId);
+        if (!person) { deselectAll(); return; }
         const court = courts[courtIdx];
         if (!court) return;
         const teamArr = team === 'A' ? court.teamA : court.teamB;
-        if (teamArr.length >= 2) {
-          deselectAll();
-          return;
-        }
+        if (teamArr.length >= 2) { deselectAll(); return; }
 
-        if (person.status === 'available') {
-          pool = pool.filter(function (p) {
-            return p.id !== selectedId;
-          });
-        } else {
-          const oc = courts[person.groupNo];
-          if (oc) {
-            if (person.status === 'team-a')
-              oc.teamA = oc.teamA.filter(function (p) {
-                return p.id !== person.id;
-              });
-            else
-              oc.teamB = oc.teamB.filter(function (p) {
-                return p.id !== person.id;
-              });
-          }
-        }
-        person.status = team === 'A' ? 'team-a' : 'team-b';
-        person.groupNo = courtIdx;
-        teamArr.push(person);
+        _removePerson(person);
+        _placePerson(person, team === 'A' ? 'team-a' : 'team-b', courtIdx, null);
+        deselectAll();
+        render();
+        syncState();
+      }
+
+      function onClickReadySlot(groupIdx, team) {
+        if (selectedId === null) return;
+        const person = people.find(p => p.id === selectedId);
+        if (!person) { deselectAll(); return; }
+        const group = readyGroups[groupIdx];
+        if (!group) return;
+        const teamArr = team === 'A' ? group.teamA : group.teamB;
+        if (teamArr.length >= 2) { deselectAll(); return; }
+
+        _removePerson(person);
+        _placePerson(person, team === 'A' ? 'ready-a' : 'ready-b', null, groupIdx);
         deselectAll();
         render();
         syncState();
@@ -160,23 +198,39 @@
       });
 
       /* ────── 인원 추가 ────── */
-      function addPerson() {
+      async function addPerson() {
         const input = document.getElementById('name-input');
         const name = input.value.trim();
         if (!name) return;
         const p = {
           id: nextId++,
+          dbId: null,
           name,
           gender: selectedGender,
           level: selectedLevel,
           status: 'available',
           groupNo: null,
+          readyGroupNo: null,
         };
         people.push(p);
         pool.push(p);
         input.value = '';
         input.focus();
         render();
+
+        // DB 회원 테이블에 게스트로 추가
+        const { data: mData, error: mErr } = await db.from('members').insert({
+          name,
+          gender: selectedGender,
+          level: selectedLevel,
+          member_type: '게스트',
+          is_active: true,
+        }).select('id').single();
+        if (mErr) {
+          console.error('[addPerson] 게스트 추가 오류:', mErr);
+        } else if (mData) {
+          p.dbId = mData.id;
+        }
         syncState();
       }
 
@@ -243,27 +297,319 @@
         syncState();
       }
 
-      /* ────── 랜덤 배정 ────── */
+      /* ────── 게임준비 대기조 관리 ────── */
+      function addReadyGroup() {
+        if (readyGroups.length >= 10) return;
+        readyGroups.push({ teamA: [], teamB: [] });
+        render();
+      }
+
+      function deleteReadyGroup(groupIdx) {
+        const group = readyGroups[groupIdx];
+        if (!group) return;
+        [...group.teamA, ...group.teamB].forEach(p => {
+          p.status = 'available';
+          p.readyGroupNo = null;
+          pool.push(p);
+        });
+        readyGroups.splice(groupIdx, 1);
+        readyGroups.forEach((g, gi) => {
+          [...g.teamA, ...g.teamB].forEach(p => { p.readyGroupNo = gi; });
+        });
+        render();
+        syncState();
+      }
+
+      function returnAllFromReadyGroup(groupIdx) {
+        const group = readyGroups[groupIdx];
+        if (!group) return;
+        [...group.teamA, ...group.teamB].forEach(p => {
+          p.status = 'available';
+          p.readyGroupNo = null;
+          pool.push(p);
+        });
+        group.teamA = [];
+        group.teamB = [];
+        render();
+        syncState();
+      }
+
+      function returnFromReadyGroup(personId) {
+        const p = people.find(x => x.id === personId);
+        if (!p || p.readyGroupNo === null) return;
+        const group = readyGroups[p.readyGroupNo];
+        if (group) {
+          group.teamA = group.teamA.filter(x => x.id !== personId);
+          group.teamB = group.teamB.filter(x => x.id !== personId);
+        }
+        p.status = 'available';
+        p.readyGroupNo = null;
+        pool.push(p);
+        render();
+        syncState();
+      }
+
+      /* ────── 게임준비 드래그 슬롯 ────── */
+      function onDragOverReadySlot(e, groupIdx, team) {
+        if (draggedId === null) return;
+        const group = readyGroups[groupIdx];
+        if (!group) return;
+        const teamArr = team === 'A' ? group.teamA : group.teamB;
+        if (teamArr.length < 2) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        }
+      }
+
+      function onDropToReadySlot(e, groupIdx, team) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('drag-over');
+        if (draggedId === null) return;
+        const person = people.find(p => p.id === draggedId);
+        if (!person) { onDragEnd(); return; }
+        const group = readyGroups[groupIdx];
+        if (!group) { onDragEnd(); return; }
+        const teamArr = team === 'A' ? group.teamA : group.teamB;
+        if (teamArr.length >= 2) { onDragEnd(); return; }
+
+        _removePerson(person);
+        _placePerson(person, team === 'A' ? 'ready-a' : 'ready-b', null, groupIdx);
+        onDragEnd();
+        render();
+        syncState();
+      }
+
+      /* ────── 대기조 헤더 드래그 → 코트 배정 ────── */
+      function onDragStartGroup(e, groupIdx) {
+        draggedGroupIdx = groupIdx;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', 'group-' + groupIdx);
+        document.body.classList.add('is-dragging-group');
+      }
+
+      function onDragEndGroup() {
+        draggedGroupIdx = null;
+        document.body.classList.remove('is-dragging-group');
+        document.querySelectorAll('.court-card.group-drag-over').forEach(el => el.classList.remove('group-drag-over'));
+      }
+
+      function onDragOverCourt(e) {
+        if (draggedGroupIdx === null) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const card = e.currentTarget.closest('.court-card');
+        if (card) card.classList.add('group-drag-over');
+      }
+
+      function onDragLeaveCourt(e) {
+        const card = e.currentTarget.closest('.court-card');
+        if (card && !card.contains(e.relatedTarget)) card.classList.remove('group-drag-over');
+      }
+
+      function onDragOverReadyCard(e, targetGroupIdx) {
+        if (draggedGroupIdx === null || draggedGroupIdx === targetGroupIdx) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const card = e.currentTarget.closest('.court-card') || e.currentTarget;
+        if (card) card.classList.add('group-drag-over');
+      }
+
+      function onDragLeaveReadyCard(e) {
+        const card = e.currentTarget.closest('.court-card') || e.currentTarget;
+        if (card && !card.contains(e.relatedTarget)) card.classList.remove('group-drag-over');
+      }
+
+      function onDropGroupToGroup(e, targetGroupIdx) {
+        e.preventDefault();
+        const card = e.currentTarget.closest ? e.currentTarget.closest('.court-card') : e.currentTarget;
+        if (card) card.classList.remove('group-drag-over');
+        if (draggedGroupIdx === null || draggedGroupIdx === targetGroupIdx) { onDragEndGroup(); return; }
+
+        const srcIdx = draggedGroupIdx;
+        const dstIdx = targetGroupIdx;
+
+        // 두 대기조 스왑
+        const temp = readyGroups[srcIdx];
+        readyGroups[srcIdx] = readyGroups[dstIdx];
+        readyGroups[dstIdx] = temp;
+
+        // readyGroupNo 재할당
+        [...readyGroups[srcIdx].teamA, ...readyGroups[srcIdx].teamB].forEach(p => { p.readyGroupNo = srcIdx; });
+        [...readyGroups[dstIdx].teamA, ...readyGroups[dstIdx].teamB].forEach(p => { p.readyGroupNo = dstIdx; });
+
+        onDragEndGroup();
+        render();
+        syncState();
+      }
+
+      function onDropGroupToCourt(e, courtIdx) {
+        e.preventDefault();
+        const card = e.currentTarget.closest ? e.currentTarget.closest('.court-card') : null;
+        if (card) card.classList.remove('group-drag-over');
+        if (draggedGroupIdx === null) return;
+
+        const group = readyGroups[draggedGroupIdx];
+        const court = courts[courtIdx];
+        if (!group || !court) { onDragEndGroup(); return; }
+
+        // 기존 코트 인원 → 대기로 복귀
+        [...court.teamA, ...court.teamB].forEach(p => {
+          p.status = 'available';
+          p.groupNo = null;
+          pool.push(p);
+        });
+        court.teamA = [];
+        court.teamB = [];
+
+        // 대기조 인원 → 코트로 이동
+        [...group.teamA].forEach(p => {
+          p.status = 'team-a';
+          p.groupNo = courtIdx;
+          p.readyGroupNo = null;
+          court.teamA.push(p);
+        });
+        [...group.teamB].forEach(p => {
+          p.status = 'team-b';
+          p.groupNo = courtIdx;
+          p.readyGroupNo = null;
+          court.teamB.push(p);
+        });
+
+        // 대기조 제거 및 재번호
+        const gIdx = draggedGroupIdx;
+        readyGroups.splice(gIdx, 1);
+        readyGroups.forEach((g, gi) => {
+          [...g.teamA, ...g.teamB].forEach(p => { p.readyGroupNo = gi; });
+        });
+
+        onDragEndGroup();
+        render();
+        syncState();
+      }
+
+      /* ────── 터치: 대기조 탭 선택 → 코트 탭 배정 ────── */
+      function onReadyHdrTap(groupIdx) {
+        if (selectedGroupIdx === groupIdx) {
+          deselectGroup();
+        } else {
+          deselectGroup();
+          deselectAll();
+          selectedGroupIdx = groupIdx;
+          document.body.classList.add('has-group-selection');
+          // 선택 표시
+          const card = document.querySelector(`.ready-card[data-group-idx="${groupIdx}"]`);
+          if (card) card.classList.add('group-selected');
+        }
+      }
+
+      function onCourtCardTap(courtIdx) {
+        if (selectedGroupIdx === null) return;
+        onDropGroupToCourt({ preventDefault: function() {}, currentTarget: document.querySelector(`.court-card[data-court-idx="${courtIdx}"]`) || {} }, courtIdx);
+        deselectGroup();
+      }
+
+      /* ────── 게임준비 대기조 개별 배정 ────── */
+      function assignReadyGroup(groupIdx) {
+        const group = readyGroups[groupIdx];
+        if (!group || pool.length === 0) return;
+        const emptyA = 2 - group.teamA.length;
+        const emptyB = 2 - group.teamB.length;
+        const totalEmpty = emptyA + emptyB;
+        if (totalEmpty === 0) return;
+        const shuffled = shuffle(pool);
+        const toAssign = shuffled.slice(0, totalEmpty);
+        let idx = 0;
+        while (group.teamA.length < 2 && idx < toAssign.length) {
+          const p = toAssign[idx++];
+          _removePerson(p);
+          _placePerson(p, 'ready-a', null, groupIdx);
+        }
+        while (group.teamB.length < 2 && idx < toAssign.length) {
+          const p = toAssign[idx++];
+          _removePerson(p);
+          _placePerson(p, 'ready-b', null, groupIdx);
+        }
+        render();
+        syncState();
+      }
+
+      function assignReadyGroupByGender(groupIdx, gender) {
+        const group = readyGroups[groupIdx];
+        if (!group) return;
+        const genderPool = pool.filter(p => p.gender === gender);
+        if (genderPool.length === 0) return;
+        const emptyA = 2 - group.teamA.length;
+        const emptyB = 2 - group.teamB.length;
+        const totalEmpty = emptyA + emptyB;
+        if (totalEmpty === 0) return;
+        const shuffled = shuffle(genderPool);
+        const toAssign = shuffled.slice(0, totalEmpty);
+        let idx = 0;
+        while (group.teamA.length < 2 && idx < toAssign.length) {
+          const p = toAssign[idx++];
+          _removePerson(p);
+          _placePerson(p, 'ready-a', null, groupIdx);
+        }
+        while (group.teamB.length < 2 && idx < toAssign.length) {
+          const p = toAssign[idx++];
+          _removePerson(p);
+          _placePerson(p, 'ready-b', null, groupIdx);
+        }
+        render();
+        syncState();
+      }
+
+      function assignReadyGroupMixed(groupIdx) {
+        const group = readyGroups[groupIdx];
+        if (!group) return;
+        const males = shuffle(pool.filter(p => p.gender === '남'));
+        const females = shuffle(pool.filter(p => p.gender === '여'));
+        if (males.length === 0 || females.length === 0) return;
+        const toAssign = [];
+        let mi = 0, fi = 0;
+        const fillTeam = (emptyCount, team) => {
+          let needMale = true;
+          for (let i = 0; i < emptyCount; i++) {
+            if (needMale && mi < males.length) toAssign.push({ person: males[mi++], team });
+            else if (!needMale && fi < females.length) toAssign.push({ person: females[fi++], team });
+            else if (mi < males.length) toAssign.push({ person: males[mi++], team });
+            else if (fi < females.length) toAssign.push({ person: females[fi++], team });
+            needMale = !needMale;
+          }
+        };
+        fillTeam(2 - group.teamA.length, 'A');
+        fillTeam(2 - group.teamB.length, 'B');
+        for (const { person, team } of toAssign) {
+          _removePerson(person);
+          _placePerson(person, team === 'A' ? 'ready-a' : 'ready-b', null, groupIdx);
+        }
+        render();
+        syncState();
+      }
+
+      /* ────── 랜덤 배정: 대기 인원 → 기존 대기조 빈 슬롯만 채우기 ────── */
       function assignCourts() {
         if (pool.length === 0) return;
+        const existingSlots = readyGroups.reduce((s, g) => s + (4 - g.teamA.length - g.teamB.length), 0);
+        if (existingSlots === 0) return;
+
         const shuffled = shuffle(pool);
         let idx = 0;
-        for (const [ci, court] of courts.entries()) {
-          while (court.teamA.length < 2 && idx < shuffled.length) {
+
+        for (let gi = 0; gi < readyGroups.length && idx < shuffled.length; gi++) {
+          const group = readyGroups[gi];
+          while (group.teamA.length < 2 && idx < shuffled.length) {
             const p = shuffled[idx++];
-            p.status = 'team-a';
-            p.groupNo = ci;
-            court.teamA.push(p);
+            _removePerson(p);
+            _placePerson(p, 'ready-a', null, gi);
           }
-          while (court.teamB.length < 2 && idx < shuffled.length) {
+          while (group.teamB.length < 2 && idx < shuffled.length) {
             const p = shuffled[idx++];
-            p.status = 'team-b';
-            p.groupNo = ci;
-            court.teamB.push(p);
+            _removePerson(p);
+            _placePerson(p, 'ready-b', null, gi);
           }
         }
-        const assignedIds = new Set(shuffled.slice(0, idx).map((p) => p.id));
-        pool = pool.filter((p) => !assignedIds.has(p.id));
+
         render();
         syncState();
       }
@@ -325,37 +671,15 @@
         e.currentTarget.classList.remove('drag-over');
         if (draggedId === null) return;
 
-        const person = people.find((p) => p.id === draggedId);
-        if (!person) {
-          onDragEnd();
-          return;
-        }
-
+        const person = people.find(p => p.id === draggedId);
+        if (!person) { onDragEnd(); return; }
         const court = courts[courtIdx];
-        if (!court) {
-          onDragEnd();
-          return;
-        }
-
+        if (!court) { onDragEnd(); return; }
         const teamArr = team === 'A' ? court.teamA : court.teamB;
-        if (teamArr.length >= 2) {
-          onDragEnd();
-          return;
-        }
+        if (teamArr.length >= 2) { onDragEnd(); return; }
 
-        if (person.status === 'available') {
-          pool = pool.filter((p) => p.id !== draggedId);
-        } else {
-          const oldCourt = courts[person.groupNo];
-          if (oldCourt) {
-            if (person.status === 'team-a') oldCourt.teamA = oldCourt.teamA.filter((p) => p.id !== person.id);
-            else oldCourt.teamB = oldCourt.teamB.filter((p) => p.id !== person.id);
-          }
-        }
-        person.status = team === 'A' ? 'team-a' : 'team-b';
-        person.groupNo = courtIdx;
-        teamArr.push(person);
-
+        _removePerson(person);
+        _placePerson(person, team === 'A' ? 'team-a' : 'team-b', courtIdx, null);
         onDragEnd();
         render();
         syncState();
@@ -487,56 +811,19 @@
         e.currentTarget.classList.remove('drag-over');
         if (draggedId === null || draggedId === targetPersonId) return;
 
-        const dragged = people.find((p) => p.id === draggedId);
-        const target = people.find((p) => p.id === targetPersonId);
-        if (!dragged || !target) {
-          onDragEnd();
-          return;
-        }
+        const dragged = people.find(p => p.id === draggedId);
+        const target = people.find(p => p.id === targetPersonId);
+        if (!dragged || !target) { onDragEnd(); return; }
 
-        // target의 현재 위치 저장
-        const targetStatus = target.status;
-        const targetGroupNo = target.groupNo;
-        const targetCourt = courts[target.groupNo];
+        // 위치 정보 저장 후 두 사람 제거
+        const dStatus = dragged.status, dGroupNo = dragged.groupNo, dReadyGroupNo = dragged.readyGroupNo;
+        const tStatus = target.status, tGroupNo = target.groupNo, tReadyGroupNo = target.readyGroupNo;
+        _removePerson(dragged);
+        _removePerson(target);
 
-        // target을 현재 코트에서 제거
-        if (targetCourt) {
-          if (target.status === 'team-a') targetCourt.teamA = targetCourt.teamA.filter((p) => p.id !== target.id);
-          else targetCourt.teamB = targetCourt.teamB.filter((p) => p.id !== target.id);
-        }
-
-        if (dragged.status === 'available') {
-          // 대기 인원 ↔ 코트 멤버 스왑
-          pool = pool.filter((p) => p.id !== dragged.id);
-          dragged.status = targetStatus;
-          dragged.groupNo = targetGroupNo;
-          if (targetStatus === 'team-a') courts[targetGroupNo].teamA.push(dragged);
-          else courts[targetGroupNo].teamB.push(dragged);
-
-          target.status = 'available';
-          target.groupNo = null;
-          pool.push(target);
-        } else {
-          // 코트 멤버 ↔ 코트 멤버 스왑
-          const draggedStatus = dragged.status;
-          const draggedGroupNo = dragged.groupNo;
-          const draggedCourt = courts[dragged.groupNo];
-
-          if (draggedCourt) {
-            if (dragged.status === 'team-a') draggedCourt.teamA = draggedCourt.teamA.filter((p) => p.id !== dragged.id);
-            else draggedCourt.teamB = draggedCourt.teamB.filter((p) => p.id !== dragged.id);
-          }
-
-          dragged.status = targetStatus;
-          dragged.groupNo = targetGroupNo;
-          if (targetStatus === 'team-a') courts[targetGroupNo].teamA.push(dragged);
-          else courts[targetGroupNo].teamB.push(dragged);
-
-          target.status = draggedStatus;
-          target.groupNo = draggedGroupNo;
-          if (draggedStatus === 'team-a') courts[draggedGroupNo].teamA.push(target);
-          else courts[draggedGroupNo].teamB.push(target);
-        }
+        // 서로 위치 스왑
+        _placePerson(dragged, tStatus, tGroupNo, tReadyGroupNo);
+        _placePerson(target, dStatus, dGroupNo, dReadyGroupNo);
 
         onDragEnd();
         render();
@@ -552,18 +839,30 @@
         document.getElementById('modal-overlay').classList.remove('show');
       }
 
-      function confirmReset() {
+      async function confirmReset() {
         people = [];
         pool = [];
         courts = [];
+        readyGroups = [];
         courtCount = 0;
         nextId = 1;
         draggedId = null;
         selectedId = null;
-        document.getElementById('court-input').value = '';
-        document.body.classList.remove('is-dragging', 'has-selection');
-        localStorage.removeItem('courtCount');
+        draggedGroupIdx = null;
+        selectedGroupIdx = null;
+        document.body.classList.remove('is-dragging', 'has-selection', 'is-dragging-group', 'has-group-selection');
         closeModal();
+
+        // 게스트 데이터 삭제
+        const { error: delErr } = await db.from('members').delete().eq('member_type', '게스트');
+        if (delErr) console.error('[reset] 게스트 삭제 오류:', delErr);
+
+        // 코트 기본 6개 생성
+        for (let i = 0; i < 6; i++) courts.push({ teamA: [], teamB: [] });
+        courtCount = 6;
+        document.getElementById('court-input').value = '6';
+        localStorage.setItem('courtCount', '6');
+
         render();
         syncState();
       }
@@ -610,7 +909,7 @@
 
         levels.forEach((level) => {
           for (let i = 0; i < 3; i++) {
-            const p = { id: nextId++, name: maleNames[mi++], gender: '남', level, status: 'available', groupNo: null };
+            const p = { id: nextId++, name: maleNames[mi++], gender: '남', level, status: 'available', groupNo: null, readyGroupNo: null };
             people.push(p);
             pool.push(p);
           }
@@ -622,6 +921,7 @@
               level,
               status: 'available',
               groupNo: null,
+              readyGroupNo: null,
             };
             people.push(p);
             pool.push(p);
@@ -639,31 +939,19 @@
       /* ────── DB: 회원 가져오기 (버튼 클릭 → 기존 인원에 추가) ────── */
       async function fetchMembers() {
         const btn = document.getElementById('btn-fetch');
-        const panel = document.getElementById('fetch-result-panel');
-        const meta = document.getElementById('fetch-result-meta');
-        const body = document.getElementById('fetch-result-body');
         const original = btn.textContent;
 
         btn.disabled = true;
         btn.textContent = '불러오는 중...';
-        panel.style.display = 'none';
 
-        const { data, error } = await db.from('members').select('id, name, gender, level').eq('is_active', true);
+        const { data, error } = await db.from('members').select('id, name, gender, level')
+          .eq('is_active', true).eq('member_type', '회원');
 
         btn.disabled = false;
         btn.textContent = original;
 
-        // ── 결과 패널 표시 ──
-        panel.style.display = 'block';
-
         if (error) {
           console.error('회원 조회 실패:', error);
-          meta.textContent = '조회 실패';
-          body.innerHTML = `<div class="fetch-result-error">
-            <strong>오류 코드:</strong> ${error.code || '-'}<br>
-            <strong>메시지:</strong> ${error.message}<br>
-            <strong>상세:</strong> ${error.details || '-'}
-          </div>`;
           return;
         }
 
@@ -681,6 +969,7 @@
             level: member.level,
             status: 'available',
             groupNo: null,
+            readyGroupNo: null,
           };
           people.push(p);
           pool.push(p);
@@ -688,35 +977,10 @@
         });
 
         render();
-        if (added > 0) syncState();
-
-        // ── 조회 결과 목록 렌더 ──
-        meta.textContent = `총 ${data.length}건 조회 · ${added}명 신규 추가`;
-
-        if (data.length === 0) {
-          body.innerHTML =
-            '<div class="fetch-result-error" style="color:#888;background:#f9f9f9">조회된 회원이 없습니다. (is_active = true 인 데이터 확인)</div>';
-        } else {
-          body.innerHTML =
-            '<div class="fetch-result-grid">' +
-            data
-              .map((m) => {
-                const gc = m.gender === '남' ? 'm' : 'f';
-                const isNew = !existingDbIds.has(m.id);
-                return `<div class="fetch-result-item gender-${gc}" title="${isNew ? '신규 추가' : '이미 존재'}${isNew ? '' : ' (중복)'}">
-                ${m.name}
-                <span class="r-sub">${m.gender} · ${m.level}급${isNew ? '' : ' ✓'}</span>
-              </div>`;
-              })
-              .join('') +
-            '</div>';
-        }
-
         if (added > 0) {
+          syncState();
           btn.textContent = `✔ ${added}명 추가됨`;
-          setTimeout(() => {
-            btn.textContent = original;
-          }, 2000);
+          setTimeout(() => { btn.textContent = original; }, 2000);
         }
       }
 
@@ -739,13 +1003,15 @@
             if (spDelErr) { console.error('[sync] session_participants 삭제 오류:', spDelErr); return; }
           }
 
-          // 2. waiting_queue, courts 동시 삭제
-          const [wqDel, cDel] = await Promise.all([
+          // 2. waiting_queue, courts, ready_queue 동시 삭제
+          const [wqDel, cDel, rqDel] = await Promise.all([
             db.from('waiting_queue').delete().not('id', 'is', null),
             db.from('courts').delete().not('id', 'is', null),
+            db.from('ready_queue').delete().not('id', 'is', null),
           ]);
           if (wqDel.error) { console.error('[sync] waiting_queue 삭제 오류:', wqDel.error); return; }
           if (cDel.error) { console.error('[sync] courts 삭제 오류:', cDel.error); return; }
+          if (rqDel.error) { console.error('[sync] ready_queue 삭제 오류:', rqDel.error); }
 
           // 3. courts 테이블 동기화 (DB는 1-indexed)
           if (courts.length > 0) {
@@ -809,7 +1075,34 @@
             if (wqErr) { console.error('[sync] waiting_queue 삽입 오류:', wqErr); return; }
           }
 
-          // 7. game_sessions.court_count 동기화
+          // 7. ready_queue 동기화
+          const readyRows = [];
+          readyGroups.forEach((group, gi) => {
+            group.teamA.forEach(p => readyRows.push({
+              session_id: activeSessionId || null,
+              group_number: gi + 1,
+              team: 'A',
+              member_id: p.dbId || null,
+              name: p.name,
+              gender: p.gender,
+              level: p.level,
+            }));
+            group.teamB.forEach(p => readyRows.push({
+              session_id: activeSessionId || null,
+              group_number: gi + 1,
+              team: 'B',
+              member_id: p.dbId || null,
+              name: p.name,
+              gender: p.gender,
+              level: p.level,
+            }));
+          });
+          if (readyRows.length > 0) {
+            const { error: rqErr } = await db.from('ready_queue').insert(readyRows);
+            if (rqErr) { console.error('[sync] ready_queue 삽입 오류:', rqErr); }
+          }
+
+          // 8. game_sessions.court_count 동기화
           if (activeSessionId) {
             const { error: gsErr } = await db.from('game_sessions')
               .update({ court_count: courtCount, updated_at: new Date().toISOString() })
@@ -858,17 +1151,19 @@
           }
         }
 
-        const [wqCheck, caCheck, cCheck, spCheck] = await Promise.all([
+        const [wqCheck, caCheck, cCheck, spCheck, rqCheck] = await Promise.all([
           db.from('waiting_queue').select('id').limit(1),
           db.from('court_assignments').select('id').limit(1),
           db.from('courts').select('id').limit(1),
           db.from('session_participants').select('id').limit(1),
+          db.from('ready_queue').select('id').limit(1),
         ]);
 
         if (wqCheck.error) console.error('[loadState] waiting_queue 접근 오류:', wqCheck.error);
         if (caCheck.error) console.error('[loadState] court_assignments 접근 오류:', caCheck.error);
         if (cCheck.error)  console.error('[loadState] courts 접근 오류:', cCheck.error);
         if (spCheck.error) console.error('[loadState] session_participants 접근 오류:', spCheck.error);
+        if (rqCheck.error) console.warn('[loadState] ready_queue 접근 오류 (테이블 미생성 가능):', rqCheck.error);
 
         if (wqCheck.error || caCheck.error || cCheck.error || spCheck.error) {
           render();
@@ -879,10 +1174,15 @@
           ? db.from('court_assignments').select('court_number, team, participant_id').eq('session_id', activeSessionId)
           : db.from('court_assignments').select('court_number, team, participant_id').limit(0);
 
-        const [{ data: wqData, error: wqErr }, { data: caData, error: caErr }, { data: cData, error: cErr }] = await Promise.all([
+        const rqQuery = !rqCheck.error
+          ? db.from('ready_queue').select('*').order('group_number').order('created_at')
+          : Promise.resolve({ data: [], error: null });
+
+        const [{ data: wqData, error: wqErr }, { data: caData, error: caErr }, { data: cData, error: cErr }, { data: rqData }] = await Promise.all([
           db.from('waiting_queue').select('*').order('created_at'),
           caQuery,
           db.from('courts').select('*').order('court_number'),
+          rqQuery,
         ]);
 
         if (wqErr) { console.error('[loadState] waiting_queue 조회 오류:', wqErr); }
@@ -964,6 +1264,26 @@
           if (court) (row.team === 'A' ? court.teamA : court.teamB).push(p);
         });
 
+        // ready_queue → readyGroups 복원
+        readyGroups = [];
+        (rqData || []).forEach((row) => {
+          const gi = row.group_number - 1; // 1-indexed → 0-indexed
+          while (readyGroups.length <= gi) readyGroups.push({ teamA: [], teamB: [] });
+          const p = {
+            id: nextId++,
+            dbId: row.member_id || null,
+            name: row.name,
+            gender: row.gender || '남',
+            level: row.level || 'A',
+            status: row.team === 'A' ? 'ready-a' : 'ready-b',
+            groupNo: null,
+            readyGroupNo: gi,
+          };
+          people.push(p);
+          if (row.team === 'A') readyGroups[gi].teamA.push(p);
+          else readyGroups[gi].teamB.push(p);
+        });
+
         render();
       }
 
@@ -980,8 +1300,10 @@
       /* ────── 렌더 ────── */
       function render() {
         const fullCourts = courts.filter((c) => c.teamA.length === 2 && c.teamB.length === 2).length;
-        const hasEmptySlot = courts.some((c) => c.teamA.length + c.teamB.length < 4);
-        const canAssign = courtCount > 0 && pool.length > 0 && hasEmptySlot;
+
+        // 기존 대기조 빈 슬롯 수 계산 (새 대기조 생성 없음)
+        const existingReadySlots = readyGroups.reduce((s, g) => s + (4 - g.teamA.length - g.teamB.length), 0);
+        const canAssign = pool.length > 0 && existingReadySlots > 0;
 
         // Stats
         document.getElementById('st-total').textContent = people.length;
@@ -1000,16 +1322,120 @@
         // 버튼
         const btn = document.getElementById('btn-assign');
         btn.disabled = !canAssign;
-        if (courtCount === 0) {
-          btn.textContent = '코트 수를 먼저 입력해 주세요';
-        } else if (pool.length === 0) {
+        if (pool.length === 0) {
           btn.textContent = '대기 인원 없음';
-        } else if (!hasEmptySlot) {
-          btn.textContent = '모든 코트 배정 완료';
+        } else if (readyGroups.length === 0) {
+          btn.textContent = '대기조 없음';
+        } else if (existingReadySlots === 0) {
+          btn.textContent = '대기조 모두 완료';
         } else {
-          const emptySlots = courts.reduce((s, c) => s + (4 - c.teamA.length - c.teamB.length), 0);
-          const fills = Math.min(pool.length, emptySlots);
-          btn.textContent = `랜덤 배정 (${fills}명 배정 가능)`;
+          const fills = Math.min(pool.length, existingReadySlots);
+          btn.textContent = `랜덤 배정 (${fills}명 → ${readyGroups.length}개 대기조)`;
+        }
+
+        // ── 게임준비 섹션 ──
+        const readyGrid = document.getElementById('ready-grid');
+        const btnAddReady = document.getElementById('btn-add-ready');
+        if (btnAddReady) btnAddReady.disabled = readyGroups.length >= 10;
+        if (readyGroups.length === 0) {
+          readyGrid.innerHTML = '<div class="empty-msg">+ 대기조 추가 버튼으로 게임을 준비하세요.</div>';
+        } else {
+          const maleInPool2 = pool.filter(p => p.gender === '남').length;
+          const femaleInPool2 = pool.filter(p => p.gender === '여').length;
+          readyGrid.innerHTML = readyGroups.map((group, gi) => {
+            const renderReadySlots = (teamArr, team) => {
+              let html = '';
+              for (const p of teamArr) {
+                const gc = p.gender === '남' ? 'm' : 'f';
+                html += `<div class="member-chip gender-${gc}"
+                              data-id="${p.id}"
+                              draggable="true"
+                              ondragstart="onDragStart(event,${p.id})"
+                              ondragend="onDragEnd()"
+                              ondragover="onDragOverMember(event,${p.id})"
+                              ondrop="onDropMember(event,${p.id})"
+                              ondragenter="onSlotEnter(event)"
+                              ondragleave="onSlotLeave(event)"
+                              ondblclick="returnFromReadyGroup(${p.id})"
+                              title="더블클릭: 대기로 복귀  |  드래그: 이동">${p.name}${infoTag(p)}</div><br>`;
+              }
+              const emptyCount = 2 - teamArr.length;
+              for (let i = 0; i < emptyCount; i++) {
+                html += `<div
+                              class="drop-slot"
+                              data-slot-group="${gi}"
+                              data-slot-team="${team}"
+                              ondragover="onDragOverReadySlot(event,${gi},'${team}')"
+                              ondrop="onDropToReadySlot(event,${gi},'${team}')"
+                              ondragenter="onSlotEnter(event)"
+                              ondragleave="onSlotLeave(event)"
+                              onclick="onClickReadySlot(${gi},'${team}')"
+                          >빈 자리</div><br>`;
+              }
+              return html;
+            };
+            const rtotal = group.teamA.length + group.teamB.length;
+            const risFull = rtotal === 4;
+            return `
+              <div class="court-card${risFull ? ' full' : ''}" data-group-idx="${gi}"
+                  ondragover="onDragOverReadyCard(event,${gi})"
+                  ondragleave="onDragLeaveReadyCard(event)"
+                  ondrop="onDropGroupToGroup(event,${gi})">
+                  <div class="ready-hdr"
+                      data-group-idx="${gi}"
+                      draggable="true"
+                      ondragstart="onDragStartGroup(event,${gi})"
+                      ondragend="onDragEndGroup()"
+                      ondblclick="returnAllFromReadyGroup(${gi})"
+                      title="드래그→코트에 배정  |  더블클릭→전원 복귀">
+                      <span>대기 ${gi + 1}조</span>
+                      <div class="court-hdr-right">
+                          <div class="court-hdr-btns">
+                              <button class="btn-court-assign"
+                                  onclick="event.stopPropagation(); assignReadyGroup(${gi})"
+                                  ondblclick="event.stopPropagation()"
+                                  ${risFull || pool.length === 0 ? 'disabled' : ''}
+                              >랜덤</button>
+                              <button class="btn-court-assign male"
+                                  onclick="event.stopPropagation(); assignReadyGroupByGender(${gi},'남')"
+                                  ondblclick="event.stopPropagation()"
+                                  ${risFull || maleInPool2 === 0 ? 'disabled' : ''}
+                              >남복</button>
+                              <button class="btn-court-assign female"
+                                  onclick="event.stopPropagation(); assignReadyGroupByGender(${gi},'여')"
+                                  ondblclick="event.stopPropagation()"
+                                  ${risFull || femaleInPool2 === 0 ? 'disabled' : ''}
+                              >여복</button>
+                              <button class="btn-court-assign mixed"
+                                  onclick="event.stopPropagation(); assignReadyGroupMixed(${gi})"
+                                  ondblclick="event.stopPropagation()"
+                                  ${risFull || maleInPool2 === 0 || femaleInPool2 === 0 ? 'disabled' : ''}
+                              >혼복</button>
+                              <button class="btn-court-delete"
+                                  onclick="event.stopPropagation(); deleteReadyGroup(${gi})"
+                                  ondblclick="event.stopPropagation()"
+                                  title="대기조 삭제 (배정 인원 대기 복귀)"
+                              >✕</button>
+                          </div>
+                          <span class="chint">
+                              ${risFull ? '✔ 준비완료' : `${rtotal}/4명`}
+                              &nbsp;|&nbsp; 드래그 → 코트 배정
+                          </span>
+                      </div>
+                  </div>
+                  <div class="court-body">
+                      <div class="team-box ta">
+                          <div class="team-lbl">A팀</div>
+                          ${renderReadySlots(group.teamA, 'A')}
+                      </div>
+                      <div class="vs-col">VS</div>
+                      <div class="team-box tb">
+                          <div class="team-lbl">B팀</div>
+                          ${renderReadySlots(group.teamB, 'B')}
+                      </div>
+                  </div>
+              </div>`;
+          }).join('');
         }
 
         // ── 대기 인원 그리드 (성별→급수 정렬) ──
@@ -1107,42 +1533,49 @@
               const isFull = total === 4;
 
               return `
-                    <div class="court-card${isFull ? ' full' : ''}">
+                    <div class="court-card${isFull ? ' full' : ''}"
+                        data-court-idx="${ci}"
+                        ondragover="onDragOverCourt(event)"
+                        ondragleave="onDragLeaveCourt(event)"
+                        ondrop="onDropGroupToCourt(event,${ci})"
+                        onclick="onCourtCardTap(${ci})">
                         <div class="court-hdr"
                             data-court-idx="${ci}"
                             ondblclick="returnAllFromCourt(${ci})"
                             title="더블클릭: 전원 대기로 복귀">
                             <span>${ci + 1}번 </span>
                             <div class="court-hdr-right">
-                                <button class="btn-court-assign"
-                                    onclick="event.stopPropagation(); assignSingleCourt(${ci})"
-                                    ondblclick="event.stopPropagation()"
-                                    ${isFull || pool.length === 0 ? 'disabled' : ''}
-                                >랜덤</button>
-                                <button class="btn-court-assign male"
-                                    onclick="event.stopPropagation(); assignSingleCourtByGender(${ci},'남')"
-                                    ondblclick="event.stopPropagation()"
-                                    ${isFull || maleInPool === 0 ? 'disabled' : ''}
-                                >남복</button>
-                                <button class="btn-court-assign female"
-                                    onclick="event.stopPropagation(); assignSingleCourtByGender(${ci},'여')"
-                                    ondblclick="event.stopPropagation()"
-                                    ${isFull || femaleInPool === 0 ? 'disabled' : ''}
-                                >여복</button>
-                                <button class="btn-court-assign mixed"
-                                    onclick="event.stopPropagation(); assignSingleCourtMixed(${ci})"
-                                    ondblclick="event.stopPropagation()"
-                                    ${isFull || maleInPool === 0 || femaleInPool === 0 ? 'disabled' : ''}
-                                >혼복</button>
+                                <div class="court-hdr-btns">
+                                    <button class="btn-court-assign"
+                                        onclick="event.stopPropagation(); assignSingleCourt(${ci})"
+                                        ondblclick="event.stopPropagation()"
+                                        ${isFull || pool.length === 0 ? 'disabled' : ''}
+                                    >랜덤</button>
+                                    <button class="btn-court-assign male"
+                                        onclick="event.stopPropagation(); assignSingleCourtByGender(${ci},'남')"
+                                        ondblclick="event.stopPropagation()"
+                                        ${isFull || maleInPool === 0 ? 'disabled' : ''}
+                                    >남복</button>
+                                    <button class="btn-court-assign female"
+                                        onclick="event.stopPropagation(); assignSingleCourtByGender(${ci},'여')"
+                                        ondblclick="event.stopPropagation()"
+                                        ${isFull || femaleInPool === 0 ? 'disabled' : ''}
+                                    >여복</button>
+                                    <button class="btn-court-assign mixed"
+                                        onclick="event.stopPropagation(); assignSingleCourtMixed(${ci})"
+                                        ondblclick="event.stopPropagation()"
+                                        ${isFull || maleInPool === 0 || femaleInPool === 0 ? 'disabled' : ''}
+                                    >혼복</button>
+                                    <button class="btn-court-delete"
+                                        onclick="event.stopPropagation(); deleteCourt(${ci})"
+                                        ondblclick="event.stopPropagation()"
+                                        title="코트 삭제 (배정 인원 대기 복귀)"
+                                    >✕</button>
+                                </div>
                                 <span class="chint">
                                     ${isFull ? '✔ 완료' : `${total}/4명`}
                                     &nbsp;|&nbsp; 더블클릭 → 전원 복귀
                                 </span>
-                                <button class="btn-court-delete"
-                                    onclick="event.stopPropagation(); deleteCourt(${ci})"
-                                    ondblclick="event.stopPropagation()"
-                                    title="코트 삭제 (배정 인원 대기 복귀)"
-                                >✕</button>
                             </div>
                         </div>
                         <div class="court-body">
@@ -1196,6 +1629,8 @@
 
       const ts = {
         personId: null,
+        groupIdx: null,  // 그룹 드래그 시 사용
+        isGroup: false,  // true: 대기조 헤더 드래그
         el: null,
         ghost: null,
         startX: 0,
@@ -1229,7 +1664,10 @@
           .querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over')
           .forEach((el) => el.classList.remove('drag-over'));
         draggedId = null;
+        draggedGroupIdx = null;
         ts.personId = null;
+        ts.groupIdx = null;
+        ts.isGroup = false;
         ts.el = null;
         ts.ready = false;
         ts.dragging = false;
@@ -1242,7 +1680,8 @@
           const draggable = e.target.closest('.p-badge.available, .member-chip');
           const assigned = !draggable && e.target.closest('.p-badge.team-a, .p-badge.team-b');
           const hdr = !draggable && !assigned && e.target.closest('.court-hdr[data-court-idx]');
-          if (!draggable && !assigned && !hdr) return;
+          const readyHdr = !draggable && !assigned && !hdr && e.target.closest('.ready-hdr[data-group-idx]');
+          if (!draggable && !assigned && !hdr && !readyHdr) return;
 
           const t = e.touches[0];
           ts.startX = ts.lastX = t.clientX;
@@ -1252,11 +1691,18 @@
           if (draggable || assigned) {
             ts.el = draggable || assigned;
             ts.personId = parseInt(ts.el.dataset.id);
+            ts.isGroup = false;
 
-            ts.longAction =
-              draggable && draggable.classList.contains('available')
-                ? () => removePerson(ts.personId)
-                : () => returnFromCourt(ts.personId);
+            // 대기 인원: 삭제 / 코트/게임준비 멤버: 대기 복귀
+            if (draggable && draggable.classList.contains('available')) {
+              ts.longAction = () => removePerson(ts.personId);
+            } else {
+              const pid = ts.personId;
+              const pp = people.find(x => x.id === pid);
+              ts.longAction = (pp && (pp.status === 'ready-a' || pp.status === 'ready-b'))
+                ? () => returnFromReadyGroup(pid)
+                : () => returnFromCourt(pid);
+            }
 
             // 300 ms → 드래그 준비 (draggable 요소만)
             if (draggable) {
@@ -1280,12 +1726,36 @@
             }, 700);
           } else if (hdr) {
             ts.el = hdr;
+            ts.isGroup = false;
             var ci = parseInt(hdr.dataset.courtIdx);
             ts.actionTimer = setTimeout(function () {
               if (!ts.dragging) {
                 if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
                 tsCleanup();
                 returnAllFromCourt(ci);
+              }
+            }, 700);
+          } else if (readyHdr) {
+            ts.el = readyHdr;
+            ts.isGroup = true;
+            ts.groupIdx = parseInt(readyHdr.dataset.groupIdx);
+
+            // 300ms → 그룹 드래그 준비
+            ts.readyTimer = setTimeout(function () {
+              if (!ts.dragging) {
+                ts.ready = true;
+                ts.el.classList.add('touch-drag-ready');
+                if (navigator.vibrate) navigator.vibrate(30);
+              }
+            }, 300);
+
+            // 700ms → 전원 대기 복귀
+            ts.actionTimer = setTimeout(function () {
+              if (!ts.dragging) {
+                if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+                var gi = ts.groupIdx;
+                tsCleanup();
+                returnAllFromReadyGroup(gi);
               }
             }, 700);
           }
@@ -1313,14 +1783,19 @@
           }
 
           // 드래그 준비 완료 상태에서 실제 이동 시작
-          if (ts.ready && !ts.dragging && dist > 4 && ts.personId !== null) {
+          if (ts.ready && !ts.dragging && dist > 4 && (ts.personId !== null || ts.isGroup)) {
             clearTimeout(ts.actionTimer);
             ts.actionTimer = null;
             ts.dragging = true;
-            draggedId = ts.personId;
+            if (ts.isGroup) {
+              draggedGroupIdx = ts.groupIdx;
+              document.body.classList.add('is-dragging-group');
+            } else {
+              draggedId = ts.personId;
+              document.body.classList.add('is-dragging');
+            }
             ts.el.classList.remove('touch-drag-ready');
             ts.el.classList.add('dragging');
-            document.body.classList.add('is-dragging');
 
             var rect = ts.el.getBoundingClientRect();
             ts.ghost = ts.el.cloneNode(true);
@@ -1351,15 +1826,31 @@
             var under = document.elementFromPoint(t.clientX, t.clientY);
             ts.ghost.style.display = '';
 
-            document.querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over').forEach(function (el) {
-              el.classList.remove('drag-over');
-            });
-
-            if (under) {
-              var slot = under.closest('.drop-slot[data-slot-court]');
-              var chip = under.closest('.member-chip[data-id]');
-              if (slot) slot.classList.add('drag-over');
-              else if (chip && parseInt(chip.dataset.id) !== ts.personId) chip.classList.add('drag-over');
+            if (ts.isGroup) {
+              // 그룹 드래그: 코트 카드 또는 대기조 카드 강조
+              document.querySelectorAll('.court-card.group-drag-over').forEach(function (el) {
+                el.classList.remove('group-drag-over');
+              });
+              if (under) {
+                var courtCard = under.closest('.court-card[data-court-idx]');
+                var readyCardOver = !courtCard && under.closest('.court-card[data-group-idx]');
+                if (courtCard) {
+                  courtCard.classList.add('group-drag-over');
+                } else if (readyCardOver && parseInt(readyCardOver.dataset.groupIdx) !== draggedGroupIdx) {
+                  readyCardOver.classList.add('group-drag-over');
+                }
+              }
+            } else {
+              // 인원 드래그: 슬롯/멤버칩 강조
+              document.querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over').forEach(function (el) {
+                el.classList.remove('drag-over');
+              });
+              if (under) {
+                var slot = under.closest('.drop-slot[data-slot-court], .drop-slot[data-slot-group]');
+                var chip = under.closest('.member-chip[data-id]');
+                if (slot) slot.classList.add('drag-over');
+                else if (chip && parseInt(chip.dataset.id) !== ts.personId) chip.classList.add('drag-over');
+              }
             }
           }
         },
@@ -1382,24 +1873,54 @@
             document.querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over').forEach(function (el) {
               el.classList.remove('drag-over');
             });
+            document.querySelectorAll('.court-card.group-drag-over').forEach(function (el) {
+              el.classList.remove('group-drag-over');
+            });
 
             var acted = false;
             if (under) {
-              var slot = under.closest('.drop-slot[data-slot-court]');
-              var chip = under.closest('.member-chip[data-id]');
-              if (slot) {
-                onDropSlot(
-                  { preventDefault: function () {}, currentTarget: slot },
-                  parseInt(slot.dataset.slotCourt),
-                  slot.dataset.slotTeam,
-                );
-                acted = true;
-              } else if (chip && parseInt(chip.dataset.id) !== ts.personId) {
-                onDropMember({ preventDefault: function () {}, currentTarget: chip }, parseInt(chip.dataset.id));
-                acted = true;
+              if (ts.isGroup) {
+                // 그룹 드래그: 코트 카드 또는 대기조 카드에 드롭
+                var courtCard = under.closest('.court-card[data-court-idx]');
+                var readyCardDst = !courtCard && under.closest('.court-card[data-group-idx]');
+                if (courtCard) {
+                  var courtIdx2 = parseInt(courtCard.dataset.courtIdx);
+                  onDropGroupToCourt({ preventDefault: function () {}, currentTarget: courtCard }, courtIdx2);
+                  acted = true;
+                } else if (readyCardDst) {
+                  var targetGi = parseInt(readyCardDst.dataset.groupIdx);
+                  onDropGroupToGroup({ preventDefault: function () {}, currentTarget: readyCardDst }, targetGi);
+                  acted = true;
+                }
+              } else {
+                // 인원 드래그: 코트/게임준비 슬롯 또는 멤버칩에 드롭
+                var slot = under.closest('.drop-slot[data-slot-court]');
+                var readySlot = !slot && under.closest('.drop-slot[data-slot-group]');
+                var chip = !slot && !readySlot && under.closest('.member-chip[data-id]');
+                if (slot) {
+                  onDropSlot(
+                    { preventDefault: function () {}, currentTarget: slot },
+                    parseInt(slot.dataset.slotCourt),
+                    slot.dataset.slotTeam,
+                  );
+                  acted = true;
+                } else if (readySlot) {
+                  onDropToReadySlot(
+                    { preventDefault: function () {}, currentTarget: readySlot },
+                    parseInt(readySlot.dataset.slotGroup),
+                    readySlot.dataset.slotTeam,
+                  );
+                  acted = true;
+                } else if (chip && parseInt(chip.dataset.id) !== ts.personId) {
+                  onDropMember({ preventDefault: function () {}, currentTarget: chip }, parseInt(chip.dataset.id));
+                  acted = true;
+                }
               }
             }
-            if (!acted) onDragEnd();
+            if (!acted) {
+              if (ts.isGroup) onDragEndGroup();
+              else onDragEnd();
+            }
           }
 
           tsCleanup();

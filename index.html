@@ -37,6 +37,19 @@
         <div class="courts-grid" id="courts-grid"></div>
       </div>
 
+      <!-- 게임준비 -->
+      <div class="section" id="sec-ready">
+        <h2>
+          게임준비
+          <span class="hint-text desktop-hint">대기조 헤더 드래그 → 코트에 놓으면 이동 &nbsp;/&nbsp; 더블클릭 → 전원 복귀</span>
+          <span class="hint-text touch-hint">헤더 길게 누르기 → 전원 복귀 &nbsp;/&nbsp; 짧게 누르기 → 조 선택 후 코트 탭</span>
+          <button class="btn-add-ready" onclick="addReadyGroup()" id="btn-add-ready">+ 대기조 추가</button>
+        </h2>
+        <div class="courts-grid" id="ready-grid">
+          <div class="empty-msg">+ 대기조 추가 버튼으로 게임을 준비하세요.</div>
+        </div>
+      </div>
+
       <!-- 전체 인원 현황 -->
       <div class="section">
         <h2>전체 인원 현황</h2>
@@ -115,21 +128,6 @@
           </div>
           <button class="btn-add" onclick="addPerson()">추가</button>
         </div>
-      </div>
-
-      <!-- DB 조회 결과 패널 -->
-      <div class="fetch-result-panel" id="fetch-result-panel" style="display: none">
-        <div class="fetch-result-header">
-          <span class="fetch-result-title">DB 조회 결과</span>
-          <span class="fetch-result-meta" id="fetch-result-meta"></span>
-          <button
-            class="btn-close-result"
-            onclick="document.getElementById('fetch-result-panel').style.display = 'none'"
-          >
-            닫기
-          </button>
-        </div>
-        <div id="fetch-result-body"></div>
       </div>
 
       <!-- Stats -->

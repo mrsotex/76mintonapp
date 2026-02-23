@@ -1,0 +1,1511 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>코트 배정 시스템</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        background: #f0f2f5;
+        color: #333;
+        min-height: 100vh;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 28px 24px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+      .header h1 {
+        font-size: 1.8rem;
+        margin-bottom: 6px;
+      }
+      .header p {
+        font-size: 0.9rem;
+        opacity: 0.8;
+      }
+
+      .container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px 16px;
+      }
+
+      /* ── 설정 패널 ── */
+      .setup-panel {
+        background: white;
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin-bottom: 18px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .setup-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .setup-row label {
+        font-weight: 700;
+        color: #555;
+        font-size: 0.9rem;
+        white-space: nowrap;
+        min-width: 64px;
+      }
+      .court-input {
+        width: 90px;
+        padding: 10px 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 1rem;
+        outline: none;
+        text-align: center;
+        transition: border-color 0.2s;
+      }
+      .court-input:focus {
+        border-color: #667eea;
+      }
+      .court-hint {
+        font-size: 0.8rem;
+        color: #aaa;
+      }
+      .court-badge {
+        display: none;
+        align-items: center;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        background: #eef2ff;
+        color: #3949ab;
+        border: 2px solid #9fa8da;
+      }
+      .divider {
+        border: none;
+        border-top: 1px solid #f0f0f0;
+      }
+      .add-input {
+        flex: 1;
+        min-width: 160px;
+        padding: 10px 14px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 1rem;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .add-input:focus {
+        border-color: #667eea;
+      }
+      .btn-add {
+        padding: 10px 22px;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.2s;
+      }
+      .btn-add:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+
+      /* ── Stats ── */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        margin-bottom: 20px;
+      }
+      .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 18px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+      .stat-card .num {
+        font-size: 2.2rem;
+        font-weight: 700;
+        line-height: 1;
+        margin-bottom: 6px;
+      }
+      .stat-card.s-total .num {
+        color: #667eea;
+      }
+      .stat-card.s-courts .num {
+        color: #43a047;
+      }
+      .stat-card.s-wait .num {
+        color: #fb8c00;
+      }
+      .stat-card .lbl {
+        font-size: 0.82rem;
+        color: #888;
+      }
+
+      /* ── Controls ── */
+      .controls {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .btn-primary {
+        flex: 1;
+        padding: 13px 30px;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 1.05rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .btn-primary:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(102, 126, 234, 0.45);
+      }
+      .btn-primary:disabled {
+        background: #c5c5c5;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+      .btn-reset {
+        padding: 13px 22px;
+        background: white;
+        color: #ef5350;
+        border: 2px solid #ef5350;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .btn-reset:hover {
+        background: #ef5350;
+        color: white;
+      }
+      .btn-sample {
+        padding: 13px 22px;
+        background: white;
+        color: #43a047;
+        border: 2px solid #43a047;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+      .btn-sample:hover {
+        background: #43a047;
+        color: white;
+      }
+
+      /* ── Section ── */
+      .section {
+        background: white;
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 18px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+      .section h2 {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #555;
+        margin-bottom: 14px;
+      }
+      .hint-text {
+        font-size: 0.75rem;
+        color: #bbb;
+        font-weight: 400;
+        margin-left: 6px;
+      }
+
+      /* ── People grid ── */
+      .people-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+        gap: 8px;
+      }
+      .empty-msg {
+        color: #bbb;
+        font-size: 0.88rem;
+        font-style: italic;
+        padding: 4px 0;
+        grid-column: 1 / -1;
+      }
+      .p-badge {
+        padding: 9px 4px;
+        border-radius: 8px;
+        text-align: center;
+        font-size: 0.82rem;
+        font-weight: 700;
+        border: 2px solid;
+        user-select: none;
+        transition:
+          transform 0.15s,
+          background 0.15s,
+          opacity 0.15s;
+        position: relative;
+      }
+      /* 성별 기반 색상 */
+      .p-badge.gender-m {
+        background: #e3f2fd;
+        color: #1565c0;
+        border-color: #90caf9;
+      }
+      .p-badge.gender-f {
+        background: #ffebee;
+        color: #b71c1c;
+        border-color: #ef9a9a;
+      }
+      .p-badge.available {
+        cursor: grab;
+      }
+      .p-badge.available:active {
+        cursor: grabbing;
+      }
+      .p-badge.available.dragging {
+        opacity: 0.35;
+        transform: scale(0.96);
+      }
+      .p-badge.team-a,
+      .p-badge.team-b {
+        cursor: pointer;
+      }
+      .p-badge:hover {
+        background: #fff3e0 !important;
+        border-color: #ffcc80 !important;
+        color: #e65100 !important;
+        transform: scale(1.04);
+      }
+
+      .p-badge .sub {
+        font-size: 0.63rem;
+        font-weight: 400;
+        opacity: 0.8;
+        display: block;
+        margin-top: 2px;
+      }
+
+      /* ── Courts grid ── */
+      .courts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+        gap: 16px;
+      }
+      .court-card {
+        border-radius: 12px;
+        overflow: hidden;
+        border: 2px solid #e0e0e0;
+        transition: border-color 0.2s;
+      }
+      .court-card.full {
+        border-color: #a5d6a7;
+      }
+
+      .court-hdr {
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        color: white;
+        padding: 10px 14px;
+        font-size: 0.92rem;
+        font-weight: 700;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.2s;
+      }
+      .court-hdr:hover {
+        background: linear-gradient(90deg, #fb8c00, #f57c00);
+      }
+      .court-hdr .chint {
+        font-size: 0.66rem;
+        opacity: 0.8;
+        font-weight: 400;
+      }
+      .court-hdr-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .btn-court-assign {
+        padding: 3px 10px;
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s;
+      }
+      .btn-court-assign:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.38);
+      }
+      .btn-court-assign:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      .btn-court-assign.male {
+        background: rgba(21, 101, 192, 0.45);
+        border-color: rgba(144, 202, 249, 0.7);
+      }
+      .btn-court-assign.male:hover:not(:disabled) {
+        background: rgba(21, 101, 192, 0.65);
+      }
+      .btn-court-assign.female {
+        background: rgba(194, 24, 91, 0.45);
+        border-color: rgba(239, 154, 154, 0.7);
+      }
+      .btn-court-assign.female:hover:not(:disabled) {
+        background: rgba(194, 24, 91, 0.65);
+      }
+      .btn-court-assign.mixed {
+        background: rgba(103, 58, 183, 0.45);
+        border-color: rgba(179, 157, 219, 0.7);
+      }
+      .btn-court-assign.mixed:hover:not(:disabled) {
+        background: rgba(103, 58, 183, 0.65);
+      }
+
+      .court-body {
+        display: flex;
+        align-items: stretch;
+      }
+      .team-box {
+        flex: 1;
+        padding: 12px 8px;
+        text-align: center;
+      }
+      .team-box.ta {
+        background: #fafafa;
+      }
+      .team-box.tb {
+        background: #fafafa;
+      }
+      .team-lbl {
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 1px;
+        margin-bottom: 10px;
+        color: #888;
+      }
+
+      .member-chip {
+        display: inline-block;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        margin-bottom: 6px;
+        cursor: grab;
+        transition: all 0.15s;
+        user-select: none;
+      }
+      .member-chip:active {
+        cursor: grabbing;
+      }
+      .member-chip.gender-m {
+        background: #e3f2fd;
+        color: #1565c0;
+      }
+      .member-chip.gender-f {
+        background: #ffebee;
+        color: #b71c1c;
+      }
+      .member-chip:hover {
+        background: #fff3e0 !important;
+        color: #e65100 !important;
+        transform: scale(1.08);
+      }
+      .member-chip.dragging {
+        opacity: 0.35;
+        transform: scale(0.96);
+      }
+      .member-chip.drag-over {
+        outline: 2px dashed #fb8c00 !important;
+        transform: scale(1.08);
+      }
+      body.is-dragging .member-chip:not(.dragging) {
+        outline: 1px dashed #9fa8da;
+        cursor: copy;
+      }
+
+      /* ── 드롭 슬롯 ── */
+      .drop-slot {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: #cfd8dc;
+        border: 2px dashed #e0e0e0;
+        background: #fafafa;
+        transition: all 0.2s;
+        min-width: 80px;
+      }
+      /* 드래그 중일 때 모든 슬롯을 강조 */
+      body.is-dragging .drop-slot {
+        border-color: #9fa8da;
+        color: #7986cb;
+        background: #f3f4ff;
+        cursor: copy;
+      }
+      /* 마우스가 올라간 슬롯 강조 */
+      .drop-slot.drag-over {
+        border-color: #43a047 !important;
+        color: #2e7d32 !important;
+        background: #e8f5e9 !important;
+        transform: scale(1.08);
+      }
+
+      .vs-col {
+        display: flex;
+        align-items: center;
+        padding: 0 4px;
+        font-size: 0.9rem;
+        font-weight: 900;
+        color: #bbb;
+        background: #fafafa;
+      }
+
+      /* ── 초기화 확인 모달 ── */
+      #modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        animation: fadeIn 0.15s ease;
+      }
+      #modal-overlay.show {
+        display: flex;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      .modal {
+        background: white;
+        border-radius: 16px;
+        padding: 32px 36px;
+        max-width: 360px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+        text-align: center;
+        animation: slideUp 0.2s ease;
+      }
+      @keyframes slideUp {
+        from {
+          transform: translateY(16px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+      .modal-icon {
+        font-size: 2.4rem;
+        margin-bottom: 12px;
+      }
+      .modal h3 {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 10px;
+      }
+      .modal p {
+        font-size: 0.88rem;
+        color: #777;
+        line-height: 1.65;
+        margin-bottom: 26px;
+      }
+      .modal-btns {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+      }
+      .btn-modal-cancel {
+        padding: 10px 26px;
+        background: white;
+        color: #667eea;
+        border: 2px solid #667eea;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .btn-modal-cancel:hover {
+        background: #667eea;
+        color: white;
+      }
+      .btn-modal-confirm {
+        padding: 10px 26px;
+        background: #ef5350;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .btn-modal-confirm:hover {
+        background: #c62828;
+      }
+
+      /* ── 인원 현황 내부 구분 ── */
+      .sub-section {
+        display: block;
+      }
+
+      .sub-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .sub-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #555;
+      }
+
+      .sub-count {
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: #888;
+        background: #f4f4f4;
+        padding: 2px 10px;
+        border-radius: 12px;
+      }
+
+      .sub-title.available-title {
+        color: #3949ab;
+      }
+      .sub-title.assigned-title {
+        color: #6d4c41;
+      }
+
+      .section-divider {
+        border: none;
+        border-top: 2px dashed #f0f0f0;
+        margin: 16px 0;
+      }
+
+      /* ── 성별/급수 토글 버튼 ── */
+      .toggle-group {
+        display: flex;
+        gap: 2px;
+        background: #f0f2f5;
+        border-radius: 8px;
+        padding: 3px;
+        flex-shrink: 0;
+      }
+
+      .toggle-btn {
+        padding: 6px 10px;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+        background: transparent;
+        color: #aaa;
+        transition: all 0.15s;
+        white-space: nowrap;
+      }
+
+      .toggle-btn.active {
+        background: white;
+        color: #333;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+      }
+
+      /* 성별 활성 색상 */
+      #btn-male.active {
+        color: #1565c0;
+      }
+      #btn-female.active {
+        color: #c2185b;
+      }
+
+      /* 배지 내 성별·급수 텍스트 */
+      .info-sub {
+        display: block;
+        margin-top: 2px;
+        font-size: 0.62rem;
+        font-weight: 600;
+        opacity: 0.9;
+      }
+      .gm {
+        color: #1565c0;
+      }
+      .gf {
+        color: #c2185b;
+      }
+      .lv-A {
+        color: #7b1fa2;
+      }
+      .lv-B {
+        color: #1565c0;
+      }
+      .lv-C {
+        color: #2e7d32;
+      }
+      .lv-D {
+        color: #e65100;
+      }
+      .lv-E {
+        color: #b71c1c;
+      }
+
+      @media (max-width: 520px) {
+        .stats {
+          gap: 8px;
+        }
+        .stat-card {
+          padding: 12px 6px;
+        }
+        .stat-card .num {
+          font-size: 1.6rem;
+        }
+        .setup-row {
+          flex-wrap: wrap;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 초기화 확인 모달 -->
+    <div id="modal-overlay" onclick="closeModal()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-icon">⚠️</div>
+        <h3>초기화 하시겠습니까?</h3>
+        <p>전체 인원 및 코트 배정 정보가<br />모두 삭제됩니다.</p>
+        <div class="modal-btns">
+          <button class="btn-modal-cancel" onclick="closeModal()">취소</button>
+          <button class="btn-modal-confirm" onclick="confirmReset()">초기화</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="header">
+      <h1>코트 배정 시스템</h1>
+      <p>코트당 4명 &nbsp;|&nbsp; A팀 2명 vs B팀 2명</p>
+    </div>
+
+    <div class="container">
+      <!-- 설정 패널 -->
+      <div class="setup-panel">
+        <div class="setup-row">
+          <label>코트 수</label>
+          <input
+            class="court-input"
+            id="court-input"
+            type="number"
+            min="1"
+            max="50"
+            placeholder="0"
+            oninput="onCourtChange()"
+          />
+          <span class="court-hint">코트당 A팀 2명 vs B팀 2명</span>
+          <span class="court-badge" id="court-badge"></span>
+        </div>
+        <hr class="divider" />
+        <div class="setup-row">
+          <label>이름 입력</label>
+          <input
+            class="add-input"
+            id="name-input"
+            type="text"
+            placeholder="이름 입력 후 Enter 또는 추가 버튼"
+            maxlength="12"
+          />
+          <!-- 성별 -->
+          <div class="toggle-group">
+            <button class="toggle-btn active" id="btn-male" onclick="setGender('남')">남</button>
+            <button class="toggle-btn" id="btn-female" onclick="setGender('여')">여</button>
+          </div>
+          <!-- 급수 -->
+          <div class="toggle-group">
+            <button class="toggle-btn active" id="btn-lv-A" onclick="setLevel('A')">A</button>
+            <button class="toggle-btn" id="btn-lv-B" onclick="setLevel('B')">B</button>
+            <button class="toggle-btn" id="btn-lv-C" onclick="setLevel('C')">C</button>
+            <button class="toggle-btn" id="btn-lv-D" onclick="setLevel('D')">D</button>
+            <button class="toggle-btn" id="btn-lv-E" onclick="setLevel('E')">E</button>
+          </div>
+          <button class="btn-add" onclick="addPerson()">추가</button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat-card s-total">
+          <div class="num" id="st-total">0</div>
+          <div class="lbl">전체 인원</div>
+        </div>
+        <div class="stat-card s-courts">
+          <div class="num" id="st-courts">0 / 0</div>
+          <div class="lbl">배정 완료 / 코트 수</div>
+        </div>
+        <div class="stat-card s-wait">
+          <div class="num" id="st-pool">0</div>
+          <div class="lbl">대기 인원</div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <button class="btn-primary" id="btn-assign" onclick="assignCourts()" disabled>랜덤 배정</button>
+        <button class="btn-sample" onclick="generateSampleData()">샘플 데이터 생성</button>
+        <button class="btn-reset" onclick="resetAll()">초기화</button>
+      </div>
+
+      <!-- 전체 인원 현황 -->
+      <div class="section">
+        <h2>전체 인원 현황</h2>
+
+        <!-- 대기 인원 -->
+        <div class="sub-section">
+          <div class="sub-header">
+            <span class="sub-title available-title">대기 인원</span>
+            <span class="sub-count" id="count-pool">0명</span>
+            <span class="hint-text">드래그 → 코트 배정 &nbsp;/&nbsp; 더블클릭 → 삭제</span>
+          </div>
+          <div class="people-grid" id="pool-grid">
+            <div class="empty-msg">이름을 입력해서 인원을 추가하세요.</div>
+          </div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <!-- 코트 배정 인원 -->
+        <div class="sub-section">
+          <div class="sub-header">
+            <span class="sub-title assigned-title">코트 배정 인원</span>
+            <span class="sub-count" id="count-assigned">0명</span>
+            <span class="hint-text">더블클릭 → 대기로 복귀</span>
+          </div>
+          <div class="people-grid" id="assigned-grid">
+            <div class="empty-msg">아직 배정된 인원이 없습니다.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 코트 현황 (항상 표시) -->
+      <div class="section" id="sec-courts" style="display: none">
+        <h2>
+          코트 현황
+          <span class="hint-text">코트 제목 더블클릭 → 해당 코트 전원 대기 복귀</span>
+        </h2>
+        <div class="courts-grid" id="courts-grid"></div>
+      </div>
+    </div>
+
+    <script>
+      let people = [];
+      let pool = [];
+      let courts = [];
+      let courtCount = 0;
+      let nextId = 1;
+      let draggedId = null;
+
+      /* 성별·급수 입력 상태 */
+      let selectedGender = '남';
+      let selectedLevel = 'A';
+
+      const GENDER_ORDER = { 남: 0, 여: 1 };
+      const LEVEL_ORDER = { A: 0, B: 1, C: 2, D: 3, E: 4 };
+
+      function setGender(g) {
+        selectedGender = g;
+        document.getElementById('btn-male').classList.toggle('active', g === '남');
+        document.getElementById('btn-female').classList.toggle('active', g === '여');
+      }
+
+      function setLevel(l) {
+        selectedLevel = l;
+        ['A', 'B', 'C', 'D', 'E'].forEach((x) =>
+          document.getElementById(`btn-lv-${x}`).classList.toggle('active', x === l),
+        );
+      }
+
+      /* 성별→급수 순 정렬 */
+      function sortedPeople(arr) {
+        return [...arr].sort((a, b) => {
+          const gd = (GENDER_ORDER[a.gender] ?? 0) - (GENDER_ORDER[b.gender] ?? 0);
+          if (gd !== 0) return gd;
+          return (LEVEL_ORDER[a.level] ?? 0) - (LEVEL_ORDER[b.level] ?? 0);
+        });
+      }
+
+      /* 배지 안 성별·급수 표기 */
+      function infoTag(p) {
+        const gc = p.gender === '남' ? 'gm' : 'gf';
+        const lc = `lv-${p.level || '?'}`;
+        return `<span class="info-sub"><span class="${gc}">${p.gender || ''}</span> · <span class="${lc}">${p.level || ''}급</span></span>`;
+      }
+
+      /* ────── 코트 수 변경 ────── */
+      function onCourtChange() {
+        const v = parseInt(document.getElementById('court-input').value) || 0;
+        const newCount = Math.max(0, v);
+
+        if (newCount > courts.length) {
+          for (let i = courts.length; i < newCount; i++) {
+            courts.push({ teamA: [], teamB: [] });
+          }
+        } else if (newCount < courts.length) {
+          const removed = courts.splice(newCount);
+          removed.forEach((c) => {
+            [...c.teamA, ...c.teamB].forEach((p) => {
+              p.status = 'available';
+              p.groupNo = null;
+              pool.push(p);
+            });
+          });
+        }
+
+        courtCount = newCount;
+        render();
+      }
+
+      /* ────── 한글 IME 버그 방지 ────── */
+      document.getElementById('name-input').addEventListener('keyup', function (e) {
+        if (e.key === 'Enter' && !e.isComposing) addPerson();
+      });
+
+      /* ────── 인원 추가 ────── */
+      function addPerson() {
+        const input = document.getElementById('name-input');
+        const name = input.value.trim();
+        if (!name) return;
+        const p = {
+          id: nextId++,
+          name,
+          gender: selectedGender,
+          level: selectedLevel,
+          status: 'available',
+          groupNo: null,
+        };
+        people.push(p);
+        pool.push(p);
+        input.value = '';
+        input.focus();
+        render();
+      }
+
+      /* ────── 대기 인원 삭제 ────── */
+      function removePerson(id) {
+        const p = people.find((x) => x.id === id);
+        if (!p || p.status !== 'available') return;
+        people = people.filter((x) => x.id !== id);
+        pool = pool.filter((x) => x.id !== id);
+        render();
+      }
+
+      /* ────── 개인 대기 복귀 ────── */
+      function returnFromCourt(personId) {
+        const p = people.find((x) => x.id === personId);
+        if (!p || p.groupNo === null) return;
+        const court = courts[p.groupNo];
+        if (court) {
+          court.teamA = court.teamA.filter((x) => x.id !== personId);
+          court.teamB = court.teamB.filter((x) => x.id !== personId);
+        }
+        p.status = 'available';
+        p.groupNo = null;
+        pool.push(p);
+        render();
+      }
+
+      /* ────── 코트 전체 대기 복귀 (제목 더블클릭) ────── */
+      function returnAllFromCourt(courtIdx) {
+        const court = courts[courtIdx];
+        if (!court) return;
+        [...court.teamA, ...court.teamB].forEach((p) => {
+          p.status = 'available';
+          p.groupNo = null;
+          pool.push(p);
+        });
+        court.teamA = [];
+        court.teamB = [];
+        render();
+      }
+
+      /* ────── 랜덤 배정 ────── */
+      function assignCourts() {
+        if (pool.length === 0) return;
+        const shuffled = shuffle(pool);
+        let idx = 0;
+        for (const [ci, court] of courts.entries()) {
+          while (court.teamA.length < 2 && idx < shuffled.length) {
+            const p = shuffled[idx++];
+            p.status = 'team-a';
+            p.groupNo = ci;
+            court.teamA.push(p);
+          }
+          while (court.teamB.length < 2 && idx < shuffled.length) {
+            const p = shuffled[idx++];
+            p.status = 'team-b';
+            p.groupNo = ci;
+            court.teamB.push(p);
+          }
+        }
+        const assignedIds = new Set(shuffled.slice(0, idx).map((p) => p.id));
+        pool = pool.filter((p) => !assignedIds.has(p.id));
+        render();
+      }
+
+      /* ────── 드래그 앤 드롭 ────────────────────────────────────────
+       핵심 규칙:
+       - onDragStart / onDragEnd 에서 render() 호출 금지
+         (DOM 재생성 시 브라우저 드래그 세션이 끊김)
+       - 시각 피드백은 classList 직접 조작 + CSS body.is-dragging 활용
+    ──────────────────────────────────────────────────────────────── */
+      function onDragStart(e, personId) {
+        draggedId = personId;
+        e.dataTransfer.effectAllowed = 'move';
+        // 드래그 이미지 생성 후 원본에 흐림 효과 (한 프레임 뒤에 적용해야 드래그 이미지에 영향 없음)
+        requestAnimationFrame(() => {
+          const el = document.querySelector(`.p-badge[data-id="${personId}"], .member-chip[data-id="${personId}"]`);
+          if (el) el.classList.add('dragging');
+        });
+        document.body.classList.add('is-dragging');
+      }
+
+      function onDragEnd() {
+        draggedId = null;
+        document.body.classList.remove('is-dragging');
+        document
+          .querySelectorAll('.p-badge.dragging, .member-chip.dragging')
+          .forEach((el) => el.classList.remove('dragging'));
+        document
+          .querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over')
+          .forEach((el) => el.classList.remove('drag-over'));
+      }
+
+      function onDragOverSlot(e, courtIdx, team) {
+        if (draggedId === null) return;
+        const court = courts[courtIdx];
+        if (!court) return;
+        const teamArr = team === 'A' ? court.teamA : court.teamB;
+        if (teamArr.length < 2) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        }
+      }
+
+      function onSlotEnter(e) {
+        if (draggedId === null) return;
+        e.currentTarget.classList.add('drag-over');
+      }
+
+      function onSlotLeave(e) {
+        // relatedTarget 이 슬롯 내부 자식이 아닐 때만 제거 (텍스트 노드 대비)
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+          e.currentTarget.classList.remove('drag-over');
+        }
+      }
+
+      function onDropSlot(e, courtIdx, team) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('drag-over');
+        if (draggedId === null) return;
+
+        const person = people.find((p) => p.id === draggedId);
+        if (!person) {
+          onDragEnd();
+          return;
+        }
+
+        const court = courts[courtIdx];
+        if (!court) {
+          onDragEnd();
+          return;
+        }
+
+        const teamArr = team === 'A' ? court.teamA : court.teamB;
+        if (teamArr.length >= 2) {
+          onDragEnd();
+          return;
+        }
+
+        if (person.status === 'available') {
+          pool = pool.filter((p) => p.id !== draggedId);
+        } else {
+          const oldCourt = courts[person.groupNo];
+          if (oldCourt) {
+            if (person.status === 'team-a') oldCourt.teamA = oldCourt.teamA.filter((p) => p.id !== person.id);
+            else oldCourt.teamB = oldCourt.teamB.filter((p) => p.id !== person.id);
+          }
+        }
+        person.status = team === 'A' ? 'team-a' : 'team-b';
+        person.groupNo = courtIdx;
+        teamArr.push(person);
+
+        onDragEnd();
+        render();
+      }
+
+      /* ────── 특정 코트 개별 배정 ────── */
+      function assignSingleCourt(courtIdx) {
+        const court = courts[courtIdx];
+        if (!court || pool.length === 0) return;
+
+        const emptyA = 2 - court.teamA.length;
+        const emptyB = 2 - court.teamB.length;
+        const totalEmpty = emptyA + emptyB;
+        if (totalEmpty === 0) return;
+
+        const shuffled = shuffle(pool);
+        const toAssign = shuffled.slice(0, totalEmpty);
+        let idx = 0;
+
+        while (court.teamA.length < 2 && idx < toAssign.length) {
+          const p = toAssign[idx++];
+          p.status = 'team-a';
+          p.groupNo = courtIdx;
+          court.teamA.push(p);
+        }
+        while (court.teamB.length < 2 && idx < toAssign.length) {
+          const p = toAssign[idx++];
+          p.status = 'team-b';
+          p.groupNo = courtIdx;
+          court.teamB.push(p);
+        }
+
+        const assignedIds = new Set(toAssign.slice(0, idx).map((p) => p.id));
+        pool = pool.filter((p) => !assignedIds.has(p.id));
+        render();
+      }
+
+      /* ────── 특정 코트 성별 배정 ────── */
+      function assignSingleCourtByGender(courtIdx, gender) {
+        const court = courts[courtIdx];
+        if (!court) return;
+
+        const genderPool = pool.filter((p) => p.gender === gender);
+        if (genderPool.length === 0) return;
+
+        const emptyA = 2 - court.teamA.length;
+        const emptyB = 2 - court.teamB.length;
+        const totalEmpty = emptyA + emptyB;
+        if (totalEmpty === 0) return;
+
+        const shuffled = shuffle(genderPool);
+        const toAssign = shuffled.slice(0, totalEmpty);
+        let idx = 0;
+
+        while (court.teamA.length < 2 && idx < toAssign.length) {
+          const p = toAssign[idx++];
+          p.status = 'team-a';
+          p.groupNo = courtIdx;
+          court.teamA.push(p);
+        }
+        while (court.teamB.length < 2 && idx < toAssign.length) {
+          const p = toAssign[idx++];
+          p.status = 'team-b';
+          p.groupNo = courtIdx;
+          court.teamB.push(p);
+        }
+
+        const assignedIds = new Set(toAssign.slice(0, idx).map((p) => p.id));
+        pool = pool.filter((p) => !assignedIds.has(p.id));
+        render();
+      }
+
+      /* ────── 특정 코트 혼복 배정 (각 팀 남1+여1) ────── */
+      function assignSingleCourtMixed(courtIdx) {
+        const court = courts[courtIdx];
+        if (!court) return;
+
+        const males   = shuffle(pool.filter(p => p.gender === '남'));
+        const females = shuffle(pool.filter(p => p.gender === '여'));
+        if (males.length === 0 || females.length === 0) return;
+
+        const toAssign = [];
+        let mi = 0, fi = 0;
+
+        const fillTeam = (emptyCount, team) => {
+          let needMale = true;
+          for (let i = 0; i < emptyCount; i++) {
+            if (needMale && mi < males.length) {
+              toAssign.push({ person: males[mi++], team });
+            } else if (!needMale && fi < females.length) {
+              toAssign.push({ person: females[fi++], team });
+            } else if (mi < males.length) {
+              toAssign.push({ person: males[mi++], team });
+            } else if (fi < females.length) {
+              toAssign.push({ person: females[fi++], team });
+            }
+            needMale = !needMale;
+          }
+        };
+
+        fillTeam(2 - court.teamA.length, 'A');
+        fillTeam(2 - court.teamB.length, 'B');
+
+        for (const { person, team } of toAssign) {
+          person.status  = team === 'A' ? 'team-a' : 'team-b';
+          person.groupNo = courtIdx;
+          if (team === 'A') court.teamA.push(person);
+          else court.teamB.push(person);
+        }
+
+        const assignedIds = new Set(toAssign.map(({ person }) => person.id));
+        pool = pool.filter(p => !assignedIds.has(p.id));
+        render();
+      }
+
+      /* ────── 코트 멤버 간 드래그 앤 드롭 (스왑) ────── */
+      function onDragOverMember(e, targetPersonId) {
+        if (draggedId === null || draggedId === targetPersonId) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      }
+
+      function onDropMember(e, targetPersonId) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('drag-over');
+        if (draggedId === null || draggedId === targetPersonId) return;
+
+        const dragged = people.find((p) => p.id === draggedId);
+        const target = people.find((p) => p.id === targetPersonId);
+        if (!dragged || !target) {
+          onDragEnd();
+          return;
+        }
+
+        // target의 현재 위치 저장
+        const targetStatus = target.status;
+        const targetGroupNo = target.groupNo;
+        const targetCourt = courts[target.groupNo];
+
+        // target을 현재 코트에서 제거
+        if (targetCourt) {
+          if (target.status === 'team-a') targetCourt.teamA = targetCourt.teamA.filter((p) => p.id !== target.id);
+          else targetCourt.teamB = targetCourt.teamB.filter((p) => p.id !== target.id);
+        }
+
+        if (dragged.status === 'available') {
+          // 대기 인원 ↔ 코트 멤버 스왑
+          pool = pool.filter((p) => p.id !== dragged.id);
+          dragged.status = targetStatus;
+          dragged.groupNo = targetGroupNo;
+          if (targetStatus === 'team-a') courts[targetGroupNo].teamA.push(dragged);
+          else courts[targetGroupNo].teamB.push(dragged);
+
+          target.status = 'available';
+          target.groupNo = null;
+          pool.push(target);
+        } else {
+          // 코트 멤버 ↔ 코트 멤버 스왑
+          const draggedStatus = dragged.status;
+          const draggedGroupNo = dragged.groupNo;
+          const draggedCourt = courts[dragged.groupNo];
+
+          if (draggedCourt) {
+            if (dragged.status === 'team-a') draggedCourt.teamA = draggedCourt.teamA.filter((p) => p.id !== dragged.id);
+            else draggedCourt.teamB = draggedCourt.teamB.filter((p) => p.id !== dragged.id);
+          }
+
+          dragged.status = targetStatus;
+          dragged.groupNo = targetGroupNo;
+          if (targetStatus === 'team-a') courts[targetGroupNo].teamA.push(dragged);
+          else courts[targetGroupNo].teamB.push(dragged);
+
+          target.status = draggedStatus;
+          target.groupNo = draggedGroupNo;
+          if (draggedStatus === 'team-a') courts[draggedGroupNo].teamA.push(target);
+          else courts[draggedGroupNo].teamB.push(target);
+        }
+
+        onDragEnd();
+        render();
+      }
+
+      /* ────── 초기화 모달 ────── */
+      function resetAll() {
+        document.getElementById('modal-overlay').classList.add('show');
+      }
+
+      function closeModal() {
+        document.getElementById('modal-overlay').classList.remove('show');
+      }
+
+      function confirmReset() {
+        people = [];
+        pool = [];
+        courts = [];
+        courtCount = 0;
+        nextId = 1;
+        draggedId = null;
+        document.getElementById('court-input').value = '';
+        document.body.classList.remove('is-dragging');
+        closeModal();
+        render();
+      }
+
+      /* ────── 샘플 데이터 생성 ────── */
+      function generateSampleData() {
+        const maleNames = [
+          '김민준', '이준호', '박지호', '최현우', '정우진',
+          '강민재', '조성훈', '윤지훈', '장태양', '한동현',
+          '임도현', '오승민', '서준혁', '신재원', '문현기',
+        ];
+        const femaleNames = [
+          '김지아', '이수연', '박민지', '최예진', '정하은',
+          '강지우', '조아라', '윤서연', '장나은', '한채원',
+          '임유진', '오소연', '서지현', '신다은', '문하늘',
+        ];
+        const levels = ['A', 'B', 'C', 'D', 'E'];
+        let mi = 0, fi = 0;
+
+        levels.forEach((level) => {
+          for (let i = 0; i < 3; i++) {
+            const p = { id: nextId++, name: maleNames[mi++], gender: '남', level, status: 'available', groupNo: null };
+            people.push(p);
+            pool.push(p);
+          }
+          for (let i = 0; i < 3; i++) {
+            const p = { id: nextId++, name: femaleNames[fi++], gender: '여', level, status: 'available', groupNo: null };
+            people.push(p);
+            pool.push(p);
+          }
+        });
+
+        // 코트 2개 설정
+        while (courts.length < 2) courts.push({ teamA: [], teamB: [] });
+        courtCount = 2;
+        document.getElementById('court-input').value = '2';
+        render();
+      }
+
+      /* ────── 유틸 ────── */
+      function shuffle(arr) {
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      }
+
+      /* ────── 렌더 ────── */
+      function render() {
+        const fullCourts = courts.filter((c) => c.teamA.length === 2 && c.teamB.length === 2).length;
+        const hasEmptySlot = courts.some((c) => c.teamA.length + c.teamB.length < 4);
+        const canAssign = courtCount > 0 && pool.length > 0 && hasEmptySlot;
+
+        // Stats
+        document.getElementById('st-total').textContent = people.length;
+        document.getElementById('st-courts').textContent = courtCount > 0 ? `${fullCourts} / ${courtCount}` : '0';
+        document.getElementById('st-pool').textContent = pool.length;
+
+        // 코트 배지
+        const badge = document.getElementById('court-badge');
+        if (courtCount > 0) {
+          badge.style.display = 'inline-flex';
+          badge.textContent = `코트 ${courtCount}개 · 최대 ${courtCount * 4}명`;
+        } else {
+          badge.style.display = 'none';
+        }
+
+        // 버튼
+        const btn = document.getElementById('btn-assign');
+        btn.disabled = !canAssign;
+        if (courtCount === 0) {
+          btn.textContent = '코트 수를 먼저 입력해 주세요';
+        } else if (pool.length === 0) {
+          btn.textContent = '대기 인원 없음';
+        } else if (!hasEmptySlot) {
+          btn.textContent = '모든 코트 배정 완료';
+        } else {
+          const emptySlots = courts.reduce((s, c) => s + (4 - c.teamA.length - c.teamB.length), 0);
+          const fills = Math.min(pool.length, emptySlots);
+          btn.textContent = `랜덤 배정 (${fills}명 배정 가능)`;
+        }
+
+        // ── 대기 인원 그리드 (성별→급수 정렬) ──
+        const poolPeople = sortedPeople(people.filter((p) => p.status === 'available'));
+        const assignedPeople = sortedPeople(people.filter((p) => p.status === 'team-a' || p.status === 'team-b'));
+
+        document.getElementById('count-pool').textContent = `${poolPeople.length}명`;
+        document.getElementById('count-assigned').textContent = `${assignedPeople.length}명`;
+
+        const poolGrid = document.getElementById('pool-grid');
+        if (poolPeople.length === 0) {
+          poolGrid.innerHTML = `<div class="empty-msg">${
+            people.length === 0 ? '이름을 입력해서 인원을 추가하세요.' : '대기 중인 인원이 없습니다.'
+          }</div>`;
+        } else {
+          poolGrid.innerHTML = poolPeople
+            .map((p) => {
+              const gc = p.gender === '남' ? 'm' : 'f';
+              return `<div
+                    class="p-badge available gender-${gc}"
+                    data-id="${p.id}"
+                    draggable="true"
+                    ondragstart="onDragStart(event,${p.id})"
+                    ondragend="onDragEnd()"
+                    ondblclick="removePerson(${p.id})"
+                    title="드래그: 코트 배정  |  더블클릭: 삭제"
+                >${p.name}${infoTag(p)}</div>`;
+            })
+            .join('');
+        }
+
+        // ── 코트 배정 인원 그리드 (성별→급수 정렬) ──
+        const assignedGrid = document.getElementById('assigned-grid');
+        if (assignedPeople.length === 0) {
+          assignedGrid.innerHTML = '<div class="empty-msg">아직 배정된 인원이 없습니다.</div>';
+        } else {
+          assignedGrid.innerHTML = assignedPeople
+            .map((p) => {
+              const gc = p.gender === '남' ? 'm' : 'f';
+              const t = p.status === 'team-a' ? 'A팀' : 'B팀';
+              const ctSub = `<span class="sub">${p.groupNo + 1}번 코트 ${t}</span>`;
+              return `<div
+                    class="p-badge ${p.status} gender-${gc}"
+                    data-id="${p.id}"
+                    ondblclick="returnFromCourt(${p.id})"
+                    title="더블클릭: 대기로 복귀"
+                >${p.name}${infoTag(p)}${ctSub}</div>`;
+            })
+            .join('');
+        }
+
+        // 코트 현황
+        const secC = document.getElementById('sec-courts');
+        if (courtCount > 0) {
+          secC.style.display = 'block';
+          const maleInPool = pool.filter((p) => p.gender === '남').length;
+          const femaleInPool = pool.filter((p) => p.gender === '여').length;
+          document.getElementById('courts-grid').innerHTML = courts
+            .map((court, ci) => {
+              const renderSlots = (teamArr, team) => {
+                let html = '';
+                for (const p of teamArr) {
+                  const gc = p.gender === '남' ? 'm' : 'f';
+                  html += `<div class="member-chip gender-${gc}"
+                            data-id="${p.id}"
+                            draggable="true"
+                            ondragstart="onDragStart(event,${p.id})"
+                            ondragend="onDragEnd()"
+                            ondragover="onDragOverMember(event,${p.id})"
+                            ondrop="onDropMember(event,${p.id})"
+                            ondragenter="onSlotEnter(event)"
+                            ondragleave="onSlotLeave(event)"
+                            ondblclick="returnFromCourt(${p.id})"
+                            title="드래그: 위치 변경  |  더블클릭: 대기로 복귀">${p.name}${infoTag(p)}</div><br>`;
+                }
+                const emptyCount = 2 - teamArr.length;
+                for (let i = 0; i < emptyCount; i++) {
+                  html += `<div
+                            class="drop-slot"
+                            ondragover="onDragOverSlot(event,${ci},'${team}')"
+                            ondrop="onDropSlot(event,${ci},'${team}')"
+                            ondragenter="onSlotEnter(event)"
+                            ondragleave="onSlotLeave(event)"
+                        >빈 자리</div><br>`;
+                }
+                return html;
+              };
+
+              const total = court.teamA.length + court.teamB.length;
+              const isFull = total === 4;
+
+              return `
+                    <div class="court-card${isFull ? ' full' : ''}">
+                        <div class="court-hdr"
+                            ondblclick="returnAllFromCourt(${ci})"
+                            title="더블클릭: 전원 대기로 복귀">
+                            <span>${ci + 1}번 </span>
+                            <div class="court-hdr-right">
+                                <button class="btn-court-assign"
+                                    onclick="event.stopPropagation(); assignSingleCourt(${ci})"
+                                    ondblclick="event.stopPropagation()"
+                                    ${isFull || pool.length === 0 ? 'disabled' : ''}
+                                >랜덤</button>
+                                <button class="btn-court-assign male"
+                                    onclick="event.stopPropagation(); assignSingleCourtByGender(${ci},'남')"
+                                    ondblclick="event.stopPropagation()"
+                                    ${isFull || maleInPool === 0 ? 'disabled' : ''}
+                                >남복</button>
+                                <button class="btn-court-assign female"
+                                    onclick="event.stopPropagation(); assignSingleCourtByGender(${ci},'여')"
+                                    ondblclick="event.stopPropagation()"
+                                    ${isFull || femaleInPool === 0 ? 'disabled' : ''}
+                                >여복</button>
+                                <button class="btn-court-assign mixed"
+                                    onclick="event.stopPropagation(); assignSingleCourtMixed(${ci})"
+                                    ondblclick="event.stopPropagation()"
+                                    ${isFull || maleInPool === 0 || femaleInPool === 0 ? 'disabled' : ''}
+                                >혼복</button>
+                                <span class="chint">
+                                    ${isFull ? '✔ 완료' : `${total}/4명`}
+                                    &nbsp;|&nbsp; 더블클릭 → 전원 복귀
+                                </span>
+                            </div>
+                        </div>
+                        <div class="court-body">
+                            <div class="team-box ta">
+                                <div class="team-lbl">A팀</div>
+                                ${renderSlots(court.teamA, 'A')}
+                            </div>
+                            <div class="vs-col">VS</div>
+                            <div class="team-box tb">
+                                <div class="team-lbl">B팀</div>
+                                ${renderSlots(court.teamB, 'B')}
+                            </div>
+                        </div>
+                    </div>`;
+            })
+            .join('');
+        } else {
+          secC.style.display = 'none';
+        }
+      }
+
+      render();
+    </script>
+  </body>
+</html>

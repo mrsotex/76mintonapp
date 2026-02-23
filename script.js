@@ -6,6 +6,9 @@
       const SUPABASE_ANON_KEY = 'sb_publishable_vF4WX27TEGBARd9Cx8ah_g_gRtfjwrx';
       const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+      // game_sessions 테이블에서 가져온 활성 세션 ID
+      let activeSessionId = null;
+
       let people = [];
       let pool = [];
       let courts = [];
@@ -534,8 +537,9 @@
         courtCount = 0;
         nextId = 1;
         draggedId = null;
+        selectedId = null;
         document.getElementById('court-input').value = '';
-        document.body.classList.remove('is-dragging');
+        document.body.classList.remove('is-dragging', 'has-selection');
         localStorage.removeItem('courtCount');
         closeModal();
         render();
@@ -695,16 +699,63 @@
       }
 
       /* ────── DB: 상태 동기화 & 복원 ────── */
-      let dbSyncEnabled = false;
 
-      async function syncState() {
-        if (!dbSyncEnabled) return;
+      // syncState debounce: 연속 호출 시 마지막 1회만 실행 (race condition 방지)
+      let _syncTimer = null;
+      function syncState() {
+        clearTimeout(_syncTimer);
+        _syncTimer = setTimeout(_doSync, 300);
+      }
+
+      async function _doSync() {
         try {
-          await Promise.all([
-            db.from('waiting_queue').delete().not('id', 'is', null),
-            db.from('court_assignments').delete().not('id', 'is', null),
-          ]);
+          // 1. court_assignments → session_participants 순서로 삭제 (FK: court_assignments.participant_id → session_participants.id)
+          if (activeSessionId) {
+            const { error: caDelErr } = await db.from('court_assignments').delete().eq('session_id', activeSessionId);
+            if (caDelErr) { console.error('[sync] court_assignments 삭제 오류:', caDelErr); return; }
+            const { error: spDelErr } = await db.from('session_participants').delete().eq('session_id', activeSessionId);
+            if (spDelErr) { console.error('[sync] session_participants 삭제 오류:', spDelErr); return; }
+          }
 
+          // 2. waiting_queue, courts 동시 삭제
+          const [wqDel, cDel] = await Promise.all([
+            db.from('waiting_queue').delete().not('id', 'is', null),
+            db.from('courts').delete().not('id', 'is', null),
+          ]);
+          if (wqDel.error) { console.error('[sync] waiting_queue 삭제 오류:', wqDel.error); return; }
+          if (cDel.error) { console.error('[sync] courts 삭제 오류:', cDel.error); return; }
+
+          // 3. courts 테이블 동기화 (DB는 1-indexed)
+          if (courts.length > 0) {
+            const courtRows = courts.map((_, i) => ({
+              court_number: i + 1,
+              court_name: `코트 ${i + 1}`,
+              is_active: true,
+            }));
+            const { error: cErr } = await db.from('courts').insert(courtRows);
+            if (cErr) { console.error('[sync] courts 삽입 오류:', cErr); return; }
+          }
+
+          // 4. session_participants 동기화 (dbId 있는 모든 인원 → members.id 기반)
+          //    court_assignments.participant_id는 session_participants.id를 FK로 참조함
+          let memberIdToSpId = {}; // members.id → session_participants.id
+          if (activeSessionId) {
+            const allDbPeople = people.filter((p) => p.dbId);
+            if (allDbPeople.length > 0) {
+              const spRows = allDbPeople.map((p) => ({
+                session_id: activeSessionId,
+                member_id: p.dbId,
+                name: p.name,
+                gender: p.gender,
+                level: p.level,
+              }));
+              const { data: spData, error: spErr } = await db.from('session_participants').insert(spRows).select('id, member_id');
+              if (spErr) { console.error('[sync] session_participants 삽입 오류:', spErr); return; }
+              (spData || []).forEach((sp) => { memberIdToSpId[sp.member_id] = sp.id; });
+            }
+          }
+
+          // 5. waiting_queue 동기화
           const waitingRows = pool.map((p) => ({
             member_id: p.dbId || null,
             name: p.name,
@@ -712,73 +763,109 @@
             level: p.level,
           }));
 
-          const assignedRows = [];
-          courts.forEach((court, ci) => {
-            court.teamA.forEach((p) =>
-              assignedRows.push({ court_no: ci, team: 'A', member_id: p.dbId || null, name: p.name, gender: p.gender, level: p.level }),
-            );
-            court.teamB.forEach((p) =>
-              assignedRows.push({ court_no: ci, team: 'B', member_id: p.dbId || null, name: p.name, gender: p.gender, level: p.level }),
-            );
-          });
+          // 6. court_assignments 동기화 (session_participants.id를 participant_id로 사용)
+          if (activeSessionId) {
+            const assignedRows = [];
+            courts.forEach((court, ci) => {
+              court.teamA.forEach((p) => {
+                const spId = p.dbId ? memberIdToSpId[p.dbId] : null;
+                if (spId) assignedRows.push({ session_id: activeSessionId, court_number: ci + 1, team: 'A', participant_id: spId });
+              });
+              court.teamB.forEach((p) => {
+                const spId = p.dbId ? memberIdToSpId[p.dbId] : null;
+                if (spId) assignedRows.push({ session_id: activeSessionId, court_number: ci + 1, team: 'B', participant_id: spId });
+              });
+            });
+            if (assignedRows.length > 0) {
+              const { error: caErr } = await db.from('court_assignments').insert(assignedRows);
+              if (caErr) { console.error('[sync] court_assignments 삽입 오류:', caErr); return; }
+            }
+          }
 
-          const ops = [];
-          if (waitingRows.length > 0) ops.push(db.from('waiting_queue').insert(waitingRows));
-          if (assignedRows.length > 0) ops.push(db.from('court_assignments').insert(assignedRows));
-          if (ops.length > 0) await Promise.all(ops);
+          if (waitingRows.length > 0) {
+            const { error: wqErr } = await db.from('waiting_queue').insert(waitingRows);
+            if (wqErr) { console.error('[sync] waiting_queue 삽입 오류:', wqErr); return; }
+          }
+
+          // 7. game_sessions.court_count 동기화
+          if (activeSessionId) {
+            const { error: gsErr } = await db.from('game_sessions')
+              .update({ court_count: courtCount, updated_at: new Date().toISOString() })
+              .eq('id', activeSessionId);
+            if (gsErr) console.error('[sync] game_sessions 업데이트 오류:', gsErr);
+          }
 
           localStorage.setItem('courtCount', courtCount);
         } catch (err) {
-          console.error('DB 동기화 오류:', err);
+          console.error('[sync] DB 동기화 오류:', err);
         }
       }
 
       /* ────── DB: 페이지 로드 시 상태 복원 ────── */
       async function loadState() {
-        const [wqCheck, caCheck] = await Promise.all([
+        // game_sessions에서 오늘 진행중 세션 조회, 없으면 자동 생성
+        const today = new Date().toISOString().split('T')[0];
+        const { data: sessions, error: sessErr } = await db
+          .from('game_sessions')
+          .select('id, court_count')
+          .eq('session_date', today)
+          .eq('status', '진행중')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (sessErr) {
+          console.error('[loadState] game_sessions 조회 오류:', sessErr);
+          // 조회 자체가 실패하면 세션 생성 시도하지 않음 (RLS 등 권한 문제)
+        } else if (sessions && sessions.length > 0) {
+          activeSessionId = sessions[0].id;
+          console.log('[session] 기존 세션 사용:', activeSessionId);
+        } else {
+          // 오늘 세션이 없으면 자동 생성
+          // ※ 실패 시: Supabase에서 game_sessions 테이블에 anon INSERT 정책 추가 필요
+          //   SQL: CREATE POLICY "anon_all" ON game_sessions FOR ALL TO anon USING (true) WITH CHECK (true);
+          const { data: newSess, error: createErr } = await db
+            .from('game_sessions')
+            .insert({ session_name: `${today} 배드민턴` })
+            .select('id')
+            .single();
+          if (createErr) {
+            console.error('[session] 세션 생성 오류 (game_sessions anon INSERT 정책 확인 필요):', createErr);
+          } else {
+            activeSessionId = newSess.id;
+            console.log('[session] 새 세션 생성:', activeSessionId);
+          }
+        }
+
+        const [wqCheck, caCheck, cCheck, spCheck] = await Promise.all([
           db.from('waiting_queue').select('id').limit(1),
           db.from('court_assignments').select('id').limit(1),
+          db.from('courts').select('id').limit(1),
+          db.from('session_participants').select('id').limit(1),
         ]);
 
-        if (wqCheck.error || caCheck.error) {
-          const sql =
-            'CREATE TABLE IF NOT EXISTS waiting_queue (\n' +
-            '  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,\n' +
-            '  member_id uuid,\n' +
-            '  name text NOT NULL,\n' +
-            '  gender text,\n' +
-            '  level text,\n' +
-            '  created_at timestamptz DEFAULT now()\n' +
-            ');\n' +
-            'ALTER TABLE waiting_queue ENABLE ROW LEVEL SECURITY;\n' +
-            'CREATE POLICY "anon all" ON waiting_queue FOR ALL TO anon USING (true) WITH CHECK (true);\n\n' +
-            'CREATE TABLE IF NOT EXISTS court_assignments (\n' +
-            '  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,\n' +
-            '  court_no integer NOT NULL,\n' +
-            '  team text NOT NULL,\n' +
-            '  member_id uuid,\n' +
-            '  name text NOT NULL,\n' +
-            '  gender text,\n' +
-            '  level text,\n' +
-            '  assigned_at timestamptz DEFAULT now()\n' +
-            ');\n' +
-            'ALTER TABLE court_assignments ENABLE ROW LEVEL SECURITY;\n' +
-            'CREATE POLICY "anon all" ON court_assignments FOR ALL TO anon USING (true) WITH CHECK (true);';
-          console.warn(
-            '⚠ 대기인원/코트배정 테이블 접근 실패 → 메모리 모드로 동작합니다.\n' +
-            'Supabase 대시보드 SQL 편집기에서 아래 SQL을 실행해 주세요:\n\n' + sql,
-          );
-          dbSyncEnabled = false;
+        if (wqCheck.error) console.error('[loadState] waiting_queue 접근 오류:', wqCheck.error);
+        if (caCheck.error) console.error('[loadState] court_assignments 접근 오류:', caCheck.error);
+        if (cCheck.error)  console.error('[loadState] courts 접근 오류:', cCheck.error);
+        if (spCheck.error) console.error('[loadState] session_participants 접근 오류:', spCheck.error);
+
+        if (wqCheck.error || caCheck.error || cCheck.error || spCheck.error) {
           render();
           return;
         }
 
-        dbSyncEnabled = true;
+        const caQuery = activeSessionId
+          ? db.from('court_assignments').select('court_number, team, participant_id').eq('session_id', activeSessionId)
+          : db.from('court_assignments').select('court_number, team, participant_id').limit(0);
 
-        const [{ data: wqData }, { data: caData }] = await Promise.all([
+        const [{ data: wqData, error: wqErr }, { data: caData, error: caErr }, { data: cData, error: cErr }] = await Promise.all([
           db.from('waiting_queue').select('*').order('created_at'),
-          db.from('court_assignments').select('*').order('court_no').order('team').order('assigned_at'),
+          caQuery,
+          db.from('courts').select('*').order('court_number'),
         ]);
+
+        if (wqErr) { console.error('[loadState] waiting_queue 조회 오류:', wqErr); }
+        if (caErr) { console.error('[loadState] court_assignments 조회 오류:', caErr); }
+        if (cErr)  { console.error('[loadState] courts 조회 오류:', cErr); }
 
         people = [];
         pool = [];
@@ -799,24 +886,59 @@
           pool.push(p);
         });
 
-        const maxCourt = (caData || []).reduce((m, r) => Math.max(m, r.court_no), -1);
+        // courts 테이블 기준으로 코트 수 복원 (DB는 1-indexed → 개수로 사용)
         const savedCount = parseInt(localStorage.getItem('courtCount')) || 0;
-        courtCount = Math.max(maxCourt + 1, savedCount);
+        if (cData && cData.length > 0) {
+          courtCount = cData.length;
+        } else {
+          // court_number는 1-indexed이므로 max값이 곧 코트 수
+          const maxCourt = (caData || []).reduce((m, r) => Math.max(m, r.court_number ?? 0), 0);
+          courtCount = Math.max(maxCourt, savedCount);
+        }
         while (courts.length < courtCount) courts.push({ teamA: [], teamB: [] });
         if (courtCount > 0) document.getElementById('court-input').value = courtCount;
 
+        // participant_id (= session_participants.id) → member_id → members 순서로 조회
+        const participantIds = (caData || []).map((r) => r.participant_id).filter(Boolean);
+        let spMap = {}; // session_participants.id → members.id
+        if (participantIds.length > 0) {
+          const { data: spData, error: spErr } = await db
+            .from('session_participants')
+            .select('id, member_id')
+            .in('id', participantIds);
+          if (spErr) { console.error('[loadState] session_participants 조회 오류:', spErr); }
+          (spData || []).forEach((sp) => { spMap[sp.id] = sp.member_id; });
+        }
+
+        const memberIds = [...new Set(Object.values(spMap).filter(Boolean))];
+        let memberMap = {};
+        if (memberIds.length > 0) {
+          const { data: mData, error: mErr } = await db
+            .from('members')
+            .select('id, name, gender, level')
+            .in('id', memberIds);
+          if (mErr) { console.error('[loadState] members 조회 오류:', mErr); }
+          (mData || []).forEach((m) => { memberMap[m.id] = m; });
+        }
+
         (caData || []).forEach((row) => {
+          if (row.court_number == null || row.team == null) return;
+          const memberId = spMap[row.participant_id]; // session_participants.id → members.id
+          const member = memberId ? memberMap[memberId] : null;
+          if (!member) return;
+          // DB는 1-indexed → 0-indexed로 변환
+          const courtIdx = row.court_number - 1;
           const p = {
             id: nextId++,
-            dbId: row.member_id || null,
-            name: row.name,
-            gender: row.gender || '남',
-            level: row.level || 'A',
+            dbId: memberId,  // members.id 저장
+            name: member.name,
+            gender: member.gender || '남',
+            level: member.level || 'A',
             status: row.team === 'A' ? 'team-a' : 'team-b',
-            groupNo: row.court_no,
+            groupNo: courtIdx,
           };
           people.push(p);
-          const court = courts[row.court_no];
+          const court = courts[courtIdx];
           if (court) (row.team === 'A' ? court.teamA : court.teamB).push(p);
         });
 

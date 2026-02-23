@@ -1108,12 +1108,18 @@
         transition: all 0.15s;
       }
 
-      /* 대기조 선택 상태 (터치) */
-      body.has-group-selection .court-card {
+      /* 대기조 선택 상태 */
+      .ready-card.group-selected {
+        outline: 3px solid #00897b !important;
+        background: #e0f2f1 !important;
+        transform: scale(1.02);
+        transition: all 0.15s;
+      }
+      body.has-group-selection .court-card[data-court-idx] {
         outline: 2px dashed #00897b;
         cursor: pointer;
       }
-      body.has-group-selection .court-card:hover {
+      body.has-group-selection .court-card[data-court-idx]:hover {
         outline: 3px solid #00897b;
         background: #e0f2f1;
       }

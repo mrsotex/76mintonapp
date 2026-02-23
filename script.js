@@ -510,6 +510,7 @@
 
       function onCourtCardTap(courtIdx) {
         if (selectedGroupIdx === null) return;
+        draggedGroupIdx = selectedGroupIdx;
         onDropGroupToCourt({ preventDefault: function() {}, currentTarget: document.querySelector(`.court-card[data-court-idx="${courtIdx}"]`) || {} }, courtIdx);
         deselectGroup();
       }
@@ -1426,17 +1427,18 @@
             const rtotal = group.teamA.length + group.teamB.length;
             const risFull = rtotal === 4;
             return `
-              <div class="court-card${risFull ? ' full' : ''}" data-group-idx="${gi}"
+              <div class="court-card ready-card${risFull ? ' full' : ''}" data-group-idx="${gi}"
                   ondragover="onDragOverReadyCard(event,${gi})"
                   ondragleave="onDragLeaveReadyCard(event)"
                   ondrop="onDropGroupToGroup(event,${gi})">
                   <div class="ready-hdr"
                       data-group-idx="${gi}"
                       draggable="true"
+                      onclick="onReadyHdrTap(${gi})"
                       ondragstart="onDragStartGroup(event,${gi})"
                       ondragend="onDragEndGroup()"
                       ondblclick="returnAllFromReadyGroup(${gi})"
-                      title="드래그→코트에 배정  |  더블클릭→전원 복귀">
+                      title="클릭→선택 후 코트 탭  |  드래그→코트에 배정  |  더블클릭→전원 복귀">
                       <span>대기 ${gi + 1}조</span>
                       <div class="court-hdr-right">
                           <div class="court-hdr-btns">
@@ -1468,7 +1470,7 @@
                           </div>
                           <span class="chint">
                               ${risFull ? '✔ 준비완료' : `${rtotal}/4명`}
-                              &nbsp;|&nbsp; 드래그 → 코트 배정
+                              &nbsp;|&nbsp; 클릭 → 코트 배정
                           </span>
                       </div>
                   </div>

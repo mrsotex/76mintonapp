@@ -197,6 +197,12 @@
         if (e.key === 'Enter' && !e.isComposing) addPerson();
       });
 
+      /* ────── 비밀번호 입력 키보드 지원 ────── */
+      document.getElementById('pw-input').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); submitPassword(); }
+        if (e.key === 'Escape') { e.preventDefault(); closePwModal(); }
+      });
+
       /* ────── 인원 추가 ────── */
       async function addPerson() {
         const input = document.getElementById('name-input');
@@ -828,6 +834,49 @@
         onDragEnd();
         render();
         syncState();
+      }
+
+      /* ────── 비밀번호 확인 모달 ────── */
+      const PW_CORRECT = 'sdf';
+      let _pwCallback = null;
+
+      function requirePassword(callback) {
+        _pwCallback = callback;
+        const overlay = document.getElementById('pw-modal-overlay');
+        const input = document.getElementById('pw-input');
+        const error = document.getElementById('pw-error');
+        input.value = '';
+        input.classList.remove('error');
+        error.textContent = '';
+        overlay.classList.add('show');
+        requestAnimationFrame(() => input.focus());
+      }
+
+      function closePwModal() {
+        const overlay = document.getElementById('pw-modal-overlay');
+        const input = document.getElementById('pw-input');
+        const error = document.getElementById('pw-error');
+        overlay.classList.remove('show');
+        input.value = '';
+        input.classList.remove('error');
+        error.textContent = '';
+        _pwCallback = null;
+      }
+
+      function submitPassword() {
+        const input = document.getElementById('pw-input');
+        const error = document.getElementById('pw-error');
+        if (input.value === PW_CORRECT) {
+          const callback = _pwCallback;
+          closePwModal();
+          if (typeof callback === 'function') callback();
+        } else {
+          error.textContent = '비밀번호가 올바르지 않습니다.';
+          input.classList.add('error');
+          input.value = '';
+          input.focus();
+          setTimeout(() => input.classList.remove('error'), 300);
+        }
       }
 
       /* ────── 초기화 모달 ────── */

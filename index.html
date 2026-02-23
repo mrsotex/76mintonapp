@@ -21,6 +21,28 @@
       </div>
     </div>
 
+    <!-- 비밀번호 확인 모달 -->
+    <div id="pw-modal-overlay" onclick="closePwModal()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-icon">🔒</div>
+        <h3>비밀번호를 입력하세요</h3>
+        <p>이 작업은 비밀번호가 필요합니다.</p>
+        <input
+          type="password"
+          id="pw-input"
+          class="pw-input"
+          placeholder="비밀번호"
+          maxlength="20"
+          autocomplete="off"
+        />
+        <div class="pw-error" id="pw-error"></div>
+        <div class="modal-btns">
+          <button class="btn-modal-cancel" onclick="closePwModal()">취소</button>
+          <button class="btn-modal-confirm pw-confirm-btn" onclick="submitPassword()">확인</button>
+        </div>
+      </div>
+    </div>
+
     <div class="header" ondblclick="location.reload()" title="더블클릭: 새로고침">
       <h1>코트 배정 시스템</h1>
       <p>코트당 4명 &nbsp;|&nbsp; A팀 2명 vs B팀 2명</p>
@@ -148,10 +170,10 @@
 
       <!-- Controls -->
       <div class="controls">
-        <button class="btn-primary" id="btn-assign" onclick="assignCourts()" disabled>랜덤 배정</button>
-        <button class="btn-sample" onclick="generateSampleData()">샘플 데이터 생성</button>
-        <button class="btn-fetch" id="btn-fetch" onclick="fetchMembers()">회원 가져오기</button>
-        <button class="btn-reset" onclick="resetAll()">초기화</button>
+        <button class="btn-primary" id="btn-assign" onclick="requirePassword(assignCourts)" disabled>랜덤 배정</button>
+        <button class="btn-sample" onclick="requirePassword(generateSampleData)">샘플 데이터 생성</button>
+        <button class="btn-fetch" id="btn-fetch" onclick="requirePassword(fetchMembers)">회원 가져오기</button>
+        <button class="btn-reset" onclick="requirePassword(resetAll)">초기화</button>
       </div>
     </div>
     <script src="script.js"></script>

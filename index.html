@@ -696,6 +696,26 @@
         color: #b71c1c;
       }
 
+      /* ── 드래그 준비 상태 (모바일 300ms 누름) ── */
+      .touch-drag-ready {
+        transform: scale(1.1) !important;
+        box-shadow: 0 4px 16px rgba(102, 126, 234, 0.5) !important;
+        transition: transform 0.15s, box-shadow 0.15s !important;
+        position: relative;
+        z-index: 10;
+      }
+
+      /* ── 터치 기기 힌트 토글 ── */
+      .touch-hint {
+        display: none;
+      }
+      .touch-device .touch-hint {
+        display: inline;
+      }
+      .touch-device .desktop-hint {
+        display: none;
+      }
+
       @media (max-width: 520px) {
         .stats {
           gap: 8px;
@@ -708,6 +728,130 @@
         }
         .setup-row {
           flex-wrap: wrap;
+        }
+      }
+
+      /* ── 모바일 반응형 (600px 이하) ── */
+      @media (max-width: 600px) {
+        .header {
+          padding: 16px 14px;
+        }
+        .header h1 {
+          font-size: 1.35rem;
+        }
+        .header p {
+          font-size: 0.82rem;
+        }
+        .container {
+          padding: 14px 10px;
+        }
+        .setup-panel {
+          padding: 14px 12px;
+          gap: 10px;
+        }
+        /* 이름 입력 행: 세로 배치 */
+        .setup-row:last-child {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 8px;
+        }
+        .setup-row:last-child label {
+          min-width: unset;
+        }
+        .add-input {
+          min-width: unset;
+          width: 100%;
+        }
+        /* 토글 버튼 */
+        .toggle-group {
+          width: 100%;
+        }
+        .toggle-btn {
+          flex: 1;
+          text-align: center;
+          padding: 8px 4px;
+        }
+        /* 추가 버튼 */
+        .btn-add {
+          width: 100%;
+          padding: 12px;
+        }
+        /* 제어 버튼 영역 */
+        .controls {
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .btn-primary {
+          flex: 0 0 100%;
+          padding: 12px;
+          font-size: 1rem;
+        }
+        .btn-sample {
+          flex: 1;
+          padding: 10px 8px;
+          font-size: 0.9rem;
+          white-space: normal;
+        }
+        .btn-reset {
+          padding: 10px 14px;
+          font-size: 0.9rem;
+        }
+        /* 힌트 텍스트 숨김 */
+        .hint-text {
+          display: none;
+        }
+        /* 섹션 */
+        .section {
+          padding: 16px 12px;
+        }
+        .section h2 {
+          font-size: 0.95rem;
+        }
+        /* 사람 그리드 */
+        .people-grid {
+          grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+          gap: 6px;
+        }
+        .p-badge {
+          padding: 10px 4px;
+          font-size: 0.8rem;
+        }
+        /* 코트 그리드: 1열 */
+        .courts-grid {
+          grid-template-columns: 1fr;
+        }
+        /* 코트 헤더: 버튼 줄바꿈 */
+        .court-hdr {
+          flex-wrap: wrap;
+          gap: 4px;
+          padding: 8px 10px;
+        }
+        .court-hdr-right {
+          width: 100%;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+        .chint {
+          display: none;
+        }
+        .btn-court-assign {
+          flex: 1;
+          padding: 6px 4px;
+          font-size: 0.72rem;
+          text-align: center;
+        }
+        /* 팀 박스 */
+        .team-box {
+          padding: 10px 6px;
+        }
+        .member-chip {
+          padding: 7px 10px;
+          font-size: 0.8rem;
+        }
+        .drop-slot {
+          min-width: 60px;
+          padding: 6px 10px;
+          font-size: 0.72rem;
         }
       }
     </style>
@@ -807,7 +951,8 @@
           <div class="sub-header">
             <span class="sub-title available-title">대기 인원</span>
             <span class="sub-count" id="count-pool">0명</span>
-            <span class="hint-text">드래그 → 코트 배정 &nbsp;/&nbsp; 더블클릭 → 삭제</span>
+            <span class="hint-text desktop-hint">드래그 → 코트 배정 &nbsp;/&nbsp; 더블클릭 → 삭제</span>
+            <span class="hint-text touch-hint">꾹 누른 후 드래그 → 배정 &nbsp;/&nbsp; 0.7초 길게 누르기 → 삭제</span>
           </div>
           <div class="people-grid" id="pool-grid">
             <div class="empty-msg">이름을 입력해서 인원을 추가하세요.</div>
@@ -821,7 +966,8 @@
           <div class="sub-header">
             <span class="sub-title assigned-title">코트 배정 인원</span>
             <span class="sub-count" id="count-assigned">0명</span>
-            <span class="hint-text">더블클릭 → 대기로 복귀</span>
+            <span class="hint-text desktop-hint">더블클릭 → 대기로 복귀</span>
+            <span class="hint-text touch-hint">0.7초 길게 누르기 → 대기로 복귀</span>
           </div>
           <div class="people-grid" id="assigned-grid">
             <div class="empty-msg">아직 배정된 인원이 없습니다.</div>
@@ -833,7 +979,8 @@
       <div class="section" id="sec-courts" style="display: none">
         <h2>
           코트 현황
-          <span class="hint-text">코트 제목 더블클릭 → 해당 코트 전원 대기 복귀</span>
+          <span class="hint-text desktop-hint">코트 제목 더블클릭 → 해당 코트 전원 대기 복귀</span>
+          <span class="hint-text touch-hint">제목 0.7초 길게 누르기 → 전원 복귀</span>
         </h2>
         <div class="courts-grid" id="courts-grid"></div>
       </div>
@@ -1441,6 +1588,8 @@
                 for (let i = 0; i < emptyCount; i++) {
                   html += `<div
                             class="drop-slot"
+                            data-slot-court="${ci}"
+                            data-slot-team="${team}"
                             ondragover="onDragOverSlot(event,${ci},'${team}')"
                             ondrop="onDropSlot(event,${ci},'${team}')"
                             ondragenter="onSlotEnter(event)"
@@ -1456,6 +1605,7 @@
               return `
                     <div class="court-card${isFull ? ' full' : ''}">
                         <div class="court-hdr"
+                            data-court-idx="${ci}"
                             ondblclick="returnAllFromCourt(${ci})"
                             title="더블클릭: 전원 대기로 복귀">
                             <span>${ci + 1}번 </span>
@@ -1506,6 +1656,215 @@
       }
 
       render();
+
+      /* ══════════════════════════════════════════════════════════════
+         터치 드래그 앤 드롭 시스템 (모바일)
+
+         동작 방식:
+           - 300 ms 누름 유지 → 드래그 활성 (진동 피드백)
+           - 활성 후 움직임 → 고스트 생성, 드롭 대상 강조
+           - 손 뗌 → 드롭 실행
+           - 700 ms 누름 유지 → 삭제 / 대기 복귀 (더블클릭 대체)
+           - 8 px 이상 이동 후 300 ms 미도달 → 스크롤로 간주, 취소
+         ═══════════════════════════════════════════════════════════════ */
+
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      if (isTouchDevice) document.body.classList.add('touch-device');
+
+      const ts = {
+        personId: null,
+        el: null,
+        ghost: null,
+        startX: 0, startY: 0,
+        lastX: 0,  lastY: 0,
+        ready: false,    // 300 ms 경과 → 드래그 준비 완료
+        dragging: false, // 실제 이동 중
+        readyTimer: null,
+        actionTimer: null,
+        longAction: null,
+      };
+
+      function tsCleanup() {
+        clearTimeout(ts.readyTimer);
+        clearTimeout(ts.actionTimer);
+        ts.readyTimer = null;
+        ts.actionTimer = null;
+        if (ts.ghost) { ts.ghost.remove(); ts.ghost = null; }
+        if (ts.el) { ts.el.classList.remove('dragging', 'touch-drag-ready'); }
+        document.body.classList.remove('is-dragging');
+        document.querySelectorAll('.p-badge.dragging, .member-chip.dragging')
+          .forEach(el => el.classList.remove('dragging'));
+        document.querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over')
+          .forEach(el => el.classList.remove('drag-over'));
+        draggedId = null;
+        ts.personId = null; ts.el = null;
+        ts.ready = false; ts.dragging = false; ts.longAction = null;
+      }
+
+      document.addEventListener('touchstart', function(e) {
+        const draggable = e.target.closest('.p-badge.available, .member-chip');
+        const assigned  = !draggable && e.target.closest('.p-badge.team-a, .p-badge.team-b');
+        const hdr       = !draggable && !assigned && e.target.closest('.court-hdr[data-court-idx]');
+        if (!draggable && !assigned && !hdr) return;
+
+        const t = e.touches[0];
+        ts.startX = ts.lastX = t.clientX;
+        ts.startY = ts.lastY = t.clientY;
+        ts.ready = ts.dragging = false;
+
+        if (draggable || assigned) {
+          ts.el = draggable || assigned;
+          ts.personId = parseInt(ts.el.dataset.id);
+
+          ts.longAction = (draggable && draggable.classList.contains('available'))
+            ? () => removePerson(ts.personId)
+            : () => returnFromCourt(ts.personId);
+
+          // 300 ms → 드래그 준비 (draggable 요소만)
+          if (draggable) {
+            ts.readyTimer = setTimeout(function() {
+              if (!ts.dragging) {
+                ts.ready = true;
+                ts.el.classList.add('touch-drag-ready');
+                if (navigator.vibrate) navigator.vibrate(30);
+              }
+            }, 300);
+          }
+
+          // 700 ms → 삭제 / 대기 복귀
+          ts.actionTimer = setTimeout(function() {
+            if (!ts.dragging && ts.longAction) {
+              if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+              var fn = ts.longAction;
+              tsCleanup();
+              fn();
+            }
+          }, 700);
+
+        } else if (hdr) {
+          ts.el = hdr;
+          var ci = parseInt(hdr.dataset.courtIdx);
+          ts.actionTimer = setTimeout(function() {
+            if (!ts.dragging) {
+              if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+              tsCleanup();
+              returnAllFromCourt(ci);
+            }
+          }, 700);
+        }
+      }, { passive: true });
+
+      document.addEventListener('touchmove', function(e) {
+        if (!ts.el) return;
+        var t = e.touches[0];
+        var dx = t.clientX - ts.startX;
+        var dy = t.clientY - ts.startY;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        ts.lastX = t.clientX;
+        ts.lastY = t.clientY;
+
+        if (!ts.ready && !ts.dragging) {
+          if (dist > 8) {
+            // 준비 전 8 px 초과 이동 → 스크롤로 간주, 취소
+            tsCleanup();
+          }
+          return;
+        }
+
+        // 드래그 준비 완료 상태에서 실제 이동 시작
+        if (ts.ready && !ts.dragging && dist > 4 && ts.personId !== null) {
+          clearTimeout(ts.actionTimer); ts.actionTimer = null;
+          ts.dragging = true;
+          draggedId = ts.personId;
+          ts.el.classList.remove('touch-drag-ready');
+          ts.el.classList.add('dragging');
+          document.body.classList.add('is-dragging');
+
+          var rect = ts.el.getBoundingClientRect();
+          ts.ghost = ts.el.cloneNode(true);
+          ts.ghost.style.cssText = [
+            'position:fixed',
+            'left:' + rect.left + 'px',
+            'top:' + rect.top + 'px',
+            'width:' + rect.width + 'px',
+            'margin:0',
+            'opacity:.75',
+            'pointer-events:none',
+            'z-index:9999',
+            'transform:scale(1.1)',
+            'box-shadow:0 8px 24px rgba(0,0,0,.25)',
+            'transition:none',
+          ].join(';');
+          document.body.appendChild(ts.ghost);
+        }
+
+        if (ts.dragging && ts.ghost) {
+          e.preventDefault();
+          var rect = ts.el.getBoundingClientRect();
+          ts.ghost.style.left = (rect.left + dx) + 'px';
+          ts.ghost.style.top  = (rect.top  + dy) + 'px';
+
+          // 드롭 대상 강조
+          ts.ghost.style.display = 'none';
+          var under = document.elementFromPoint(t.clientX, t.clientY);
+          ts.ghost.style.display = '';
+
+          document.querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over')
+            .forEach(function(el) { el.classList.remove('drag-over'); });
+
+          if (under) {
+            var slot = under.closest('.drop-slot[data-slot-court]');
+            var chip = under.closest('.member-chip[data-id]');
+            if (slot) slot.classList.add('drag-over');
+            else if (chip && parseInt(chip.dataset.id) !== ts.personId)
+              chip.classList.add('drag-over');
+          }
+        }
+      }, { passive: false });
+
+      document.addEventListener('touchend', function(e) {
+        clearTimeout(ts.readyTimer);
+        clearTimeout(ts.actionTimer);
+
+        if (ts.dragging) {
+          e.preventDefault();
+
+          if (ts.ghost) ts.ghost.style.display = 'none';
+          var under = document.elementFromPoint(ts.lastX, ts.lastY);
+          if (ts.ghost) ts.ghost.style.display = '';
+
+          document.querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over')
+            .forEach(function(el) { el.classList.remove('drag-over'); });
+
+          var acted = false;
+          if (under) {
+            var slot = under.closest('.drop-slot[data-slot-court]');
+            var chip = under.closest('.member-chip[data-id]');
+            if (slot) {
+              onDropSlot(
+                { preventDefault: function(){}, currentTarget: slot },
+                parseInt(slot.dataset.slotCourt),
+                slot.dataset.slotTeam
+              );
+              acted = true;
+            } else if (chip && parseInt(chip.dataset.id) !== ts.personId) {
+              onDropMember(
+                { preventDefault: function(){}, currentTarget: chip },
+                parseInt(chip.dataset.id)
+              );
+              acted = true;
+            }
+          }
+          if (!acted) onDragEnd();
+        }
+
+        tsCleanup();
+      }, { passive: false });
+
+      document.addEventListener('touchcancel', function() {
+        onDragEnd();
+        tsCleanup();
+      }, { passive: true });
     </script>
   </body>
 </html>

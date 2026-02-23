@@ -854,6 +854,38 @@
           font-size: 0.72rem;
         }
       }
+
+      /* ── 클릭 선택 상태 ── */
+      .p-badge.selected {
+        outline: 3px solid #fb8c00 !important;
+        background: #fff3e0 !important;
+        color: #e65100 !important;
+        border-color: #ffcc80 !important;
+        box-shadow: 0 4px 14px rgba(251, 140, 0, 0.45);
+        transform: scale(1.06);
+        z-index: 5;
+        position: relative;
+      }
+      /* 선택 중일 때 빈 자리 강조 */
+      body.has-selection .drop-slot {
+        border-color: #9fa8da;
+        color: #7986cb;
+        background: #f3f4ff;
+        cursor: pointer;
+      }
+      body.has-selection .drop-slot:hover {
+        border-color: #43a047 !important;
+        color: #2e7d32 !important;
+        background: #e8f5e9 !important;
+        transform: scale(1.06);
+      }
+      /* 선택 중일 때 코트 멤버칩 포인터 */
+      body.has-selection .member-chip {
+        cursor: pointer;
+      }
+      body.has-selection .member-chip:hover {
+        outline: 2px dashed #fb8c00;
+      }
     </style>
   </head>
   <body>
@@ -942,6 +974,16 @@
         <button class="btn-reset" onclick="resetAll()">초기화</button>
       </div>
 
+      <!-- 코트 현황 (항상 표시) -->
+      <div class="section" id="sec-courts" style="display: none">
+        <h2>
+          코트 현황
+          <span class="hint-text desktop-hint">코트 제목 더블클릭 → 전원 대기 복귀</span>
+          <span class="hint-text touch-hint">제목 0.7초 길게 누르기 → 전원 복귀</span>
+        </h2>
+        <div class="courts-grid" id="courts-grid"></div>
+      </div>
+
       <!-- 전체 인원 현황 -->
       <div class="section">
         <h2>전체 인원 현황</h2>
@@ -951,8 +993,8 @@
           <div class="sub-header">
             <span class="sub-title available-title">대기 인원</span>
             <span class="sub-count" id="count-pool">0명</span>
-            <span class="hint-text desktop-hint">드래그 → 코트 배정 &nbsp;/&nbsp; 더블클릭 → 삭제</span>
-            <span class="hint-text touch-hint">꾹 누른 후 드래그 → 배정 &nbsp;/&nbsp; 0.7초 길게 누르기 → 삭제</span>
+            <span class="hint-text desktop-hint">클릭: 선택 → 빈 자리 클릭으로 배정 &nbsp;/&nbsp; 드래그: 배정 &nbsp;/&nbsp; 더블클릭: 삭제</span>
+            <span class="hint-text touch-hint">탭: 선택 → 빈 자리 탭으로 배정 &nbsp;/&nbsp; 0.7초 길게 누르기: 삭제</span>
           </div>
           <div class="people-grid" id="pool-grid">
             <div class="empty-msg">이름을 입력해서 인원을 추가하세요.</div>
@@ -974,16 +1016,6 @@
           </div>
         </div>
       </div>
-
-      <!-- 코트 현황 (항상 표시) -->
-      <div class="section" id="sec-courts" style="display: none">
-        <h2>
-          코트 현황
-          <span class="hint-text desktop-hint">코트 제목 더블클릭 → 해당 코트 전원 대기 복귀</span>
-          <span class="hint-text touch-hint">제목 0.7초 길게 누르기 → 전원 복귀</span>
-        </h2>
-        <div class="courts-grid" id="courts-grid"></div>
-      </div>
     </div>
 
     <script>
@@ -993,6 +1025,61 @@
       let courtCount = 0;
       let nextId = 1;
       let draggedId = null;
+      let selectedId = null; // 클릭 선택된 대기 인원 ID
+
+      /* ── 클릭 선택 관련 함수 ── */
+      function deselectAll() {
+        selectedId = null;
+        document.body.classList.remove('has-selection');
+        document.querySelectorAll('.p-badge.selected, .member-chip.selected')
+          .forEach(function(el) { el.classList.remove('selected'); });
+      }
+
+      function onClickPoolBadge(personId) {
+        if (selectedId === personId) { deselectAll(); return; }
+        deselectAll();
+        selectedId = personId;
+        document.body.classList.add('has-selection');
+        const el = document.querySelector('.p-badge[data-id="' + personId + '"]');
+        if (el) el.classList.add('selected');
+      }
+
+      function onClickSlot(courtIdx, team) {
+        if (selectedId === null) return;
+        const person = people.find(function(p) { return p.id === selectedId; });
+        if (!person) { deselectAll(); return; }
+        const court = courts[courtIdx];
+        if (!court) return;
+        const teamArr = team === 'A' ? court.teamA : court.teamB;
+        if (teamArr.length >= 2) { deselectAll(); return; }
+
+        if (person.status === 'available') {
+          pool = pool.filter(function(p) { return p.id !== selectedId; });
+        } else {
+          const oc = courts[person.groupNo];
+          if (oc) {
+            if (person.status === 'team-a') oc.teamA = oc.teamA.filter(function(p) { return p.id !== person.id; });
+            else oc.teamB = oc.teamB.filter(function(p) { return p.id !== person.id; });
+          }
+        }
+        person.status = team === 'A' ? 'team-a' : 'team-b';
+        person.groupNo = courtIdx;
+        teamArr.push(person);
+        deselectAll();
+        render();
+      }
+
+      function onClickMember(targetPersonId) {
+        if (selectedId === null || selectedId === targetPersonId) return;
+        const tempId = selectedId;
+        deselectAll();
+        draggedId = tempId;
+        const chip = document.querySelector('.member-chip[data-id="' + targetPersonId + '"]');
+        onDropMember(
+          { preventDefault: function() {}, currentTarget: chip || { classList: { remove: function() {} } } },
+          targetPersonId
+        );
+      }
 
       /* 성별·급수 입력 상태 */
       let selectedGender = '남';
@@ -1148,6 +1235,7 @@
        - 시각 피드백은 classList 직접 조작 + CSS body.is-dragging 활용
     ──────────────────────────────────────────────────────────────── */
       function onDragStart(e, personId) {
+        deselectAll();
         draggedId = personId;
         e.dataTransfer.effectAllowed = 'move';
         // 드래그 이미지 생성 후 원본에 흐림 효과 (한 프레임 뒤에 적용해야 드래그 이미지에 영향 없음)
@@ -1533,8 +1621,9 @@
                     draggable="true"
                     ondragstart="onDragStart(event,${p.id})"
                     ondragend="onDragEnd()"
+                    onclick="onClickPoolBadge(${p.id})"
                     ondblclick="removePerson(${p.id})"
-                    title="드래그: 코트 배정  |  더블클릭: 삭제"
+                    title="클릭: 선택 후 빈 자리 클릭으로 배정  |  드래그: 배정  |  더블클릭: 삭제"
                 >${p.name}${infoTag(p)}</div>`;
             })
             .join('');
@@ -1581,8 +1670,9 @@
                             ondrop="onDropMember(event,${p.id})"
                             ondragenter="onSlotEnter(event)"
                             ondragleave="onSlotLeave(event)"
+                            onclick="onClickMember(${p.id})"
                             ondblclick="returnFromCourt(${p.id})"
-                            title="드래그: 위치 변경  |  더블클릭: 대기로 복귀">${p.name}${infoTag(p)}</div><br>`;
+                            title="클릭(선택 중): 스왑  |  드래그: 위치 변경  |  더블클릭: 대기로 복귀">${p.name}${infoTag(p)}</div><br>`;
                 }
                 const emptyCount = 2 - teamArr.length;
                 for (let i = 0; i < emptyCount; i++) {
@@ -1594,6 +1684,7 @@
                             ondrop="onDropSlot(event,${ci},'${team}')"
                             ondragenter="onSlotEnter(event)"
                             ondragleave="onSlotLeave(event)"
+                            onclick="onClickSlot(${ci},'${team}')"
                         >빈 자리</div><br>`;
                 }
                 return html;
@@ -1652,6 +1743,18 @@
             .join('');
         } else {
           secC.style.display = 'none';
+        }
+
+        // 클릭 선택 상태 복원 (render 후 DOM 재생성으로 사라진 .selected 재적용)
+        if (selectedId !== null) {
+          const selP = people.find(function(x) { return x.id === selectedId; });
+          if (!selP || selP.status !== 'available') {
+            deselectAll();
+          } else {
+            document.body.classList.add('has-selection');
+            const selEl = document.querySelector('.p-badge.available[data-id="' + selectedId + '"]');
+            if (selEl) selEl.classList.add('selected');
+          }
         }
       }
 

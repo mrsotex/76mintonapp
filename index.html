@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>코트 배정 시스템</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
       * {
         margin: 0;
@@ -1025,6 +1026,14 @@
     </div>
 
     <script>
+      // =============================================
+      // Supabase 설정
+      // Supabase 대시보드 → Project Settings → API 에서 복사
+      // =============================================
+      const SUPABASE_URL = 'https://jcthdhhwydwbnppwzzey.supabase.co';
+      const SUPABASE_ANON_KEY = 'sb_publishable_vF4WX27TEGBARd9Cx8ah_g_gRtfjwrx';
+      const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
       let people = [];
       let pool = [];
       let courts = [];
@@ -1613,6 +1622,41 @@
         render();
       }
 
+      /* ────── DB: 회원마스터 로드 ────── */
+      async function loadMembers() {
+        const poolGrid = document.getElementById('pool-grid');
+        poolGrid.innerHTML = '<div class="empty-msg">회원 데이터를 불러오는 중...</div>';
+
+        const { data, error } = await db.from('members').select('id, name, gender, level').eq('is_active', true);
+
+        if (error) {
+          console.error('회원 조회 실패:', error);
+          poolGrid.innerHTML =
+            '<div class="empty-msg" style="color:#ef5350">⚠ 회원 데이터 로드에 실패했습니다. 콘솔(F12)을 확인하세요.</div>';
+          return;
+        }
+
+        people = [];
+        pool = [];
+        nextId = 1;
+
+        data.forEach((member) => {
+          const p = {
+            id: nextId++,
+            dbId: member.id, // Supabase UUID (향후 DB 연동 시 사용)
+            name: member.name,
+            gender: member.gender,
+            level: member.level,
+            status: 'available',
+            groupNo: null,
+          };
+          people.push(p);
+          pool.push(p);
+        });
+
+        render();
+      }
+
       /* ────── 유틸 ────── */
       function shuffle(arr) {
         const a = [...arr];
@@ -1819,7 +1863,7 @@
         }
       }
 
-      render();
+      loadMembers();
 
       /* ══════════════════════════════════════════════════════════════
          터치 드래그 앤 드롭 시스템 (모바일)

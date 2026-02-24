@@ -26,6 +26,36 @@
       let userRole = null; // null | 'user' | 'admin'
       const AUTH_CODES = { '76m': 'user', 'sdf': 'admin' };
 
+      /* ── 자동 새로고침 타이머 (일반 사용자 전용) ── */
+      let _refreshInterval = null;
+      let _refreshCountdown = 0;
+
+      function _updateRefreshDisplay() {
+        const el = document.getElementById('refresh-timer');
+        if (!el) return;
+        el.textContent = _refreshCountdown > 0 ? _refreshCountdown + '초' : '';
+      }
+
+      function startAutoRefresh() {
+        stopAutoRefresh();
+        _refreshCountdown = 60;
+        _updateRefreshDisplay();
+        _refreshInterval = setInterval(function() {
+          _refreshCountdown--;
+          if (_refreshCountdown <= 0) {
+            _refreshCountdown = 60;
+            loadState();
+          }
+          _updateRefreshDisplay();
+        }, 1000);
+      }
+
+      function stopAutoRefresh() {
+        if (_refreshInterval) { clearInterval(_refreshInterval); _refreshInterval = null; }
+        _refreshCountdown = 0;
+        _updateRefreshDisplay();
+      }
+
       function submitLogin() {
         const input = document.getElementById('login-input');
         const errorEl = document.getElementById('login-error');
@@ -50,9 +80,12 @@
         document.body.classList.add('role-' + userRole);
         const roleLabel = document.getElementById('role-label');
         if (roleLabel) roleLabel.textContent = userRole === 'admin' ? '관리자' : '일반 사용자';
+        if (userRole === 'user') startAutoRefresh();
+        else stopAutoRefresh();
       }
 
       function logout() {
+        stopAutoRefresh();
         userRole = null;
         sessionStorage.removeItem('userRole');
         document.body.classList.remove('role-user', 'role-admin');

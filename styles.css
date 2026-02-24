@@ -1288,6 +1288,13 @@
         transition: background 0.2s;
       }
       .btn-logout:hover { background: rgba(255, 255, 255, 0.35); }
+      .refresh-timer {
+        font-size: 0.72rem;
+        color: rgba(255, 255, 255, 0.55);
+        min-width: 28px;
+        letter-spacing: 0.02em;
+      }
+      body.role-admin .refresh-timer { display: none; }
 
       /* ── 일반 사용자: 코트현황·게임준비만 표시 ── */
       body.role-user #sec-people { display: none !important; }

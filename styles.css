@@ -1288,6 +1288,10 @@
         transition: background 0.2s;
       }
       .btn-logout:hover { background: rgba(255, 255, 255, 0.35); }
+      body.role-admin .header {
+        background: linear-gradient(135deg, #e05a5a 0%, #a83232 100%);
+        box-shadow: 0 4px 12px rgba(220, 80, 80, 0.4);
+      }
       .refresh-timer {
         font-size: 0.72rem;
         color: rgba(255, 255, 255, 0.55);

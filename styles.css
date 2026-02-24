@@ -1297,6 +1297,7 @@
 
       /* ── 일반 사용자: 조회 전용 (조작 UI 숨김) ── */
       body.role-user #btn-add-ready          { display: none !important; }
+      body.role-user .court-hdr-btns         { display: none !important; }
       body.role-user .hint-text,
       body.role-user .chint                  { display: none !important; }
       body.role-user .court-card,

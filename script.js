@@ -19,6 +19,51 @@
       let readyGroups = []; // 게임준비 대기조 (최대 10개) [{teamA:[], teamB:[]}]
       let draggedGroupIdx = null; // 대기조 헤더 드래그 인덱스
       let selectedGroupIdx = null; // 터치: 탭으로 선택된 대기조 인덱스
+      let draggedCourtIdx = null; // 코트 헤더 드래그 인덱스
+      let selectedCourtIdx = null; // 탭으로 선택된 코트 인덱스
+
+      /* ── 로그인 / 역할 관리 ── */
+      let userRole = null; // null | 'user' | 'admin'
+      const AUTH_CODES = { '76m': 'user', 'sdf': 'admin' };
+
+      function submitLogin() {
+        const input = document.getElementById('login-input');
+        const errorEl = document.getElementById('login-error');
+        const role = AUTH_CODES[input.value];
+        if (!role) {
+          errorEl.textContent = '인증코드가 올바르지 않습니다.';
+          input.value = '';
+          input.focus();
+          input.classList.add('error');
+          setTimeout(function() { errorEl.textContent = ''; input.classList.remove('error'); }, 2000);
+          return;
+        }
+        userRole = role;
+        sessionStorage.setItem('userRole', role);
+        document.getElementById('login-overlay').style.display = 'none';
+        applyRole();
+        loadState();
+      }
+
+      function applyRole() {
+        document.body.classList.remove('role-user', 'role-admin');
+        document.body.classList.add('role-' + userRole);
+        const roleLabel = document.getElementById('role-label');
+        if (roleLabel) roleLabel.textContent = userRole === 'admin' ? '관리자' : '일반 사용자';
+      }
+
+      function logout() {
+        userRole = null;
+        sessionStorage.removeItem('userRole');
+        document.body.classList.remove('role-user', 'role-admin');
+        document.getElementById('login-overlay').style.display = 'flex';
+        document.getElementById('login-input').value = '';
+        document.getElementById('login-error').textContent = '';
+        // 상태 초기화
+        people = []; pool = []; courts = []; readyGroups = [];
+        courtCount = 0; nextId = 1;
+        render();
+      }
 
       /* ── 클릭 선택 관련 함수 ── */
       function deselectAll() {
@@ -34,6 +79,14 @@
         document.body.classList.remove('has-group-selection');
         document.querySelectorAll('.ready-card.group-selected').forEach(function (el) {
           el.classList.remove('group-selected');
+        });
+      }
+
+      function deselectCourt() {
+        selectedCourtIdx = null;
+        document.body.classList.remove('has-court-selection');
+        document.querySelectorAll('.court-card.court-tap-selected').forEach(function (el) {
+          el.classList.remove('court-tap-selected');
         });
       }
 
@@ -197,6 +250,7 @@
         if (e.key === 'Enter' && !e.isComposing) addPerson();
       });
 
+
       /* ────── 비밀번호 입력 키보드 지원 ────── */
       document.getElementById('pw-input').addEventListener('keydown', function (e) {
         if (e.key === 'Enter') { e.preventDefault(); submitPassword(); }
@@ -305,6 +359,7 @@
 
       /* ────── 게임준비 대기조 관리 ────── */
       function addReadyGroup() {
+        if (userRole !== 'admin') return;
         if (readyGroups.length >= 10) return;
         readyGroups.push({ teamA: [], teamB: [] });
         render();
@@ -387,6 +442,7 @@
 
       /* ────── 대기조 헤더 드래그 → 코트 배정 ────── */
       function onDragStartGroup(e, groupIdx) {
+        if (userRole !== 'admin') { e.preventDefault(); return; }
         draggedGroupIdx = groupIdx;
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', 'group-' + groupIdx);
@@ -400,16 +456,28 @@
       }
 
       function onDragOverCourt(e) {
-        if (draggedGroupIdx === null) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        const card = e.currentTarget.closest('.court-card');
-        if (card) card.classList.add('group-drag-over');
+        if (draggedGroupIdx !== null) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          const card = e.currentTarget.closest('.court-card');
+          if (card) card.classList.add('group-drag-over');
+        } else if (draggedCourtIdx !== null) {
+          const card = e.currentTarget.closest('.court-card');
+          if (!card) return;
+          const targetIdx = parseInt(card.dataset.courtIdx);
+          if (targetIdx === draggedCourtIdx) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          card.classList.add('court-drag-over');
+        }
       }
 
       function onDragLeaveCourt(e) {
         const card = e.currentTarget.closest('.court-card');
-        if (card && !card.contains(e.relatedTarget)) card.classList.remove('group-drag-over');
+        if (card && !card.contains(e.relatedTarget)) {
+          card.classList.remove('group-drag-over');
+          card.classList.remove('court-drag-over');
+        }
       }
 
       function onDragOverReadyCard(e, targetGroupIdx) {
@@ -493,22 +561,51 @@
         syncState();
       }
 
-      /* ────── 터치: 대기조 탭 선택 → 코트 탭 배정 ────── */
+      /* ── 대기조 탭 선택 → 대기조 간 인원 교체 ── */
+      function swapReadyGroupPlayers(srcIdx, dstIdx) {
+        const temp = readyGroups[srcIdx];
+        readyGroups[srcIdx] = readyGroups[dstIdx];
+        readyGroups[dstIdx] = temp;
+        [...readyGroups[srcIdx].teamA, ...readyGroups[srcIdx].teamB].forEach(p => { p.readyGroupNo = srcIdx; });
+        [...readyGroups[dstIdx].teamA, ...readyGroups[dstIdx].teamB].forEach(p => { p.readyGroupNo = dstIdx; });
+        render();
+        syncState();
+      }
+
+      /* ────── 터치: 대기조 탭 선택 → 코트 탭 배정 / 대기조끼리 교체 ────── */
       function onReadyHdrTap(groupIdx) {
+        if (userRole !== 'admin') return;
         if (selectedGroupIdx === groupIdx) {
           deselectGroup();
+        } else if (selectedGroupIdx !== null) {
+          const src = selectedGroupIdx;
+          deselectGroup();
+          swapReadyGroupPlayers(src, groupIdx);
         } else {
           deselectGroup();
+          deselectCourt();
           deselectAll();
           selectedGroupIdx = groupIdx;
           document.body.classList.add('has-group-selection');
-          // 선택 표시
           const card = document.querySelector(`.ready-card[data-group-idx="${groupIdx}"]`);
           if (card) card.classList.add('group-selected');
         }
       }
 
       function onCourtCardTap(courtIdx) {
+        if (userRole !== 'admin') return;
+        // 코트 탭 선택 모드: 선택된 코트와 교체
+        if (selectedCourtIdx !== null) {
+          if (selectedCourtIdx !== courtIdx) {
+            const src = selectedCourtIdx;
+            deselectCourt();
+            swapCourtPlayers(src, courtIdx);
+          } else {
+            deselectCourt();
+          }
+          return;
+        }
+        // 대기조 선택 모드: 선택된 대기조를 이 코트에 배정
         if (selectedGroupIdx === null) return;
         draggedGroupIdx = selectedGroupIdx;
         onDropGroupToCourt({ preventDefault: function() {}, currentTarget: document.querySelector(`.court-card[data-court-idx="${courtIdx}"]`) || {} }, courtIdx);
@@ -628,6 +725,7 @@
        - 시각 피드백은 classList 직접 조작 + CSS body.is-dragging 활용
     ──────────────────────────────────────────────────────────────── */
       function onDragStart(e, personId) {
+        if (userRole !== 'admin') { e.preventDefault(); return; }
         deselectAll();
         draggedId = personId;
         e.dataTransfer.effectAllowed = 'move';
@@ -837,6 +935,94 @@
         syncState();
       }
 
+      /* ────── 코트 헤더 드래그 → 코트 간 인원 교체 ────── */
+      function onDragStartCourt(e, courtIdx) {
+        if (userRole !== 'admin') { e.preventDefault(); return; }
+        draggedCourtIdx = courtIdx;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', 'court-' + courtIdx);
+        document.body.classList.add('is-dragging-court');
+      }
+
+      function onDragEndCourt() {
+        draggedCourtIdx = null;
+        document.body.classList.remove('is-dragging-court');
+        document.querySelectorAll('.court-card.court-drag-over').forEach(el => el.classList.remove('court-drag-over'));
+      }
+
+      function onDropCourtSwap(e, targetCourtIdx) {
+        e.preventDefault();
+        const card = e.currentTarget.closest ? e.currentTarget.closest('.court-card') : e.currentTarget;
+        if (card) card.classList.remove('court-drag-over');
+        if (draggedCourtIdx === null || draggedCourtIdx === targetCourtIdx) { onDragEndCourt(); return; }
+
+        const src = draggedCourtIdx;
+        const dst = targetCourtIdx;
+        const tempA = courts[src].teamA;
+        const tempB = courts[src].teamB;
+        courts[src].teamA = courts[dst].teamA;
+        courts[src].teamB = courts[dst].teamB;
+        courts[dst].teamA = tempA;
+        courts[dst].teamB = tempB;
+        [...courts[src].teamA, ...courts[src].teamB].forEach(p => { p.groupNo = src; });
+        [...courts[dst].teamA, ...courts[dst].teamB].forEach(p => { p.groupNo = dst; });
+
+        onDragEndCourt();
+        render();
+        syncState();
+      }
+
+      // 코트 카드 ondrop: 대기조→코트 이동 또는 코트↔코트 교체를 통합 처리
+      function onDropToCourtCard(e, courtIdx) {
+        if (draggedCourtIdx !== null) {
+          onDropCourtSwap(e, courtIdx);
+        } else {
+          onDropGroupToCourt(e, courtIdx);
+        }
+      }
+
+      /* ── 코트 탭 선택 → 코트 간 인원 교체 ── */
+      function swapCourtPlayers(srcIdx, dstIdx) {
+        const tempA = courts[srcIdx].teamA;
+        const tempB = courts[srcIdx].teamB;
+        courts[srcIdx].teamA = courts[dstIdx].teamA;
+        courts[srcIdx].teamB = courts[dstIdx].teamB;
+        courts[dstIdx].teamA = tempA;
+        courts[dstIdx].teamB = tempB;
+        [...courts[srcIdx].teamA, ...courts[srcIdx].teamB].forEach(p => { p.groupNo = srcIdx; });
+        [...courts[dstIdx].teamA, ...courts[dstIdx].teamB].forEach(p => { p.groupNo = dstIdx; });
+        render();
+        syncState();
+      }
+
+      function onCourtHdrTap(courtIdx) {
+        if (userRole !== 'admin') return;
+        // 대기조가 선택된 상태: 헤더 탭해도 코트로 이동 처리
+        if (selectedGroupIdx !== null) {
+          draggedGroupIdx = selectedGroupIdx;
+          onDropGroupToCourt(
+            { preventDefault: function() {}, currentTarget: document.querySelector(`.court-card[data-court-idx="${courtIdx}"]`) || {} },
+            courtIdx
+          );
+          deselectGroup();
+          return;
+        }
+        if (selectedCourtIdx === courtIdx) {
+          deselectCourt();
+        } else if (selectedCourtIdx !== null) {
+          const src = selectedCourtIdx;
+          deselectCourt();
+          swapCourtPlayers(src, courtIdx);
+        } else {
+          deselectCourt();
+          deselectAll();
+          selectedCourtIdx = courtIdx;
+          document.body.classList.add('has-court-selection');
+          const card = document.querySelector(`.court-card[data-court-idx="${courtIdx}"]`);
+          if (card) card.classList.add('court-tap-selected');
+        }
+      }
+
       /* ────── 비밀번호 확인 모달 ────── */
       const PW_CORRECT = 'sdf';
       let _pwCallback = null;
@@ -900,7 +1086,9 @@
         selectedId = null;
         draggedGroupIdx = null;
         selectedGroupIdx = null;
-        document.body.classList.remove('is-dragging', 'has-selection', 'is-dragging-group', 'has-group-selection');
+        draggedCourtIdx = null;
+        selectedCourtIdx = null;
+        document.body.classList.remove('is-dragging', 'has-selection', 'is-dragging-group', 'has-group-selection', 'is-dragging-court', 'has-court-selection');
         closeModal();
 
         // 게스트 데이터 삭제
@@ -1582,50 +1770,28 @@
 
               const total = court.teamA.length + court.teamB.length;
               const isFull = total === 4;
+              const isTapSelected = selectedCourtIdx === ci;
 
               return `
-                    <div class="court-card${isFull ? ' full' : ''}"
+                    <div class="court-card${isFull ? ' full' : ''}${isTapSelected ? ' court-tap-selected' : ''}"
                         data-court-idx="${ci}"
                         ondragover="onDragOverCourt(event)"
                         ondragleave="onDragLeaveCourt(event)"
-                        ondrop="onDropGroupToCourt(event,${ci})"
+                        ondrop="onDropToCourtCard(event,${ci})"
                         onclick="onCourtCardTap(${ci})">
                         <div class="court-hdr"
                             data-court-idx="${ci}"
+                            draggable="true"
+                            ondragstart="onDragStartCourt(event,${ci})"
+                            ondragend="onDragEndCourt()"
+                            onclick="event.stopPropagation(); onCourtHdrTap(${ci})"
                             ondblclick="returnAllFromCourt(${ci})"
-                            title="더블클릭: 전원 대기로 복귀">
+                            title="클릭: 코트 선택 후 다른 코트 탭 → 교체  |  드래그: 코트 인원 교체  |  더블클릭: 전원 대기로 복귀">
                             <span>${ci + 1}번 </span>
                             <div class="court-hdr-right">
-                                <div class="court-hdr-btns">
-                                    <button class="btn-court-assign"
-                                        onclick="event.stopPropagation(); assignSingleCourt(${ci})"
-                                        ondblclick="event.stopPropagation()"
-                                        ${isFull || pool.length === 0 ? 'disabled' : ''}
-                                    >랜덤</button>
-                                    <button class="btn-court-assign male"
-                                        onclick="event.stopPropagation(); assignSingleCourtByGender(${ci},'남')"
-                                        ondblclick="event.stopPropagation()"
-                                        ${isFull || maleInPool === 0 ? 'disabled' : ''}
-                                    >남복</button>
-                                    <button class="btn-court-assign female"
-                                        onclick="event.stopPropagation(); assignSingleCourtByGender(${ci},'여')"
-                                        ondblclick="event.stopPropagation()"
-                                        ${isFull || femaleInPool === 0 ? 'disabled' : ''}
-                                    >여복</button>
-                                    <button class="btn-court-assign mixed"
-                                        onclick="event.stopPropagation(); assignSingleCourtMixed(${ci})"
-                                        ondblclick="event.stopPropagation()"
-                                        ${isFull || maleInPool === 0 || femaleInPool === 0 ? 'disabled' : ''}
-                                    >혼복</button>
-                                    <button class="btn-court-delete"
-                                        onclick="event.stopPropagation(); requirePassword(function(){ deleteCourt(${ci}) })"
-                                        ondblclick="event.stopPropagation()"
-                                        title="코트 삭제 (배정 인원 대기 복귀)"
-                                    >✕</button>
-                                </div>
                                 <span class="chint">
                                     ${isFull ? '✔ 완료' : `${total}/4명`}
-                                    &nbsp;|&nbsp; 더블클릭 → 전원 복귀
+                                    &nbsp;|&nbsp; ${isTapSelected ? '⬅ 다른 코트 탭해서 교체' : '제목 클릭 → 코트 교체'}
                                 </span>
                             </div>
                         </div>
@@ -1660,9 +1826,31 @@
             if (selEl) selEl.classList.add('selected');
           }
         }
+
+        // 코트 탭 선택 상태 복원
+        if (selectedCourtIdx !== null) {
+          if (selectedCourtIdx >= courts.length) {
+            deselectCourt();
+          } else {
+            document.body.classList.add('has-court-selection');
+          }
+        }
       }
 
-      loadState();
+      /* ── 로그인 초기화 ── */
+      document.getElementById('login-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') submitLogin();
+      });
+
+      (function() {
+        const saved = sessionStorage.getItem('userRole');
+        if (saved === 'user' || saved === 'admin') {
+          userRole = saved;
+          document.getElementById('login-overlay').style.display = 'none';
+          applyRole();
+          loadState();
+        }
+      })();
 
       /* ══════════════════════════════════════════════════════════════
          터치 드래그 앤 드롭 시스템 (모바일)
@@ -1680,8 +1868,9 @@
 
       const ts = {
         personId: null,
-        groupIdx: null,  // 그룹 드래그 시 사용
+        groupIdx: null,  // 그룹/코트 드래그 시 사용
         isGroup: false,  // true: 대기조 헤더 드래그
+        isCourt: false,  // true: 코트 헤더 드래그
         el: null,
         ghost: null,
         startX: 0,
@@ -1708,17 +1897,23 @@
           ts.el.classList.remove('dragging', 'touch-drag-ready');
         }
         document.body.classList.remove('is-dragging');
+        document.body.classList.remove('is-dragging-court');
         document
           .querySelectorAll('.p-badge.dragging, .member-chip.dragging')
           .forEach((el) => el.classList.remove('dragging'));
         document
           .querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over')
           .forEach((el) => el.classList.remove('drag-over'));
+        document
+          .querySelectorAll('.court-card.court-drag-over')
+          .forEach((el) => el.classList.remove('court-drag-over'));
         draggedId = null;
         draggedGroupIdx = null;
+        draggedCourtIdx = null;
         ts.personId = null;
         ts.groupIdx = null;
         ts.isGroup = false;
+        ts.isCourt = false;
         ts.el = null;
         ts.ready = false;
         ts.dragging = false;
@@ -1728,6 +1923,10 @@
       document.addEventListener(
         'touchstart',
         function (e) {
+          // 버튼 탭은 터치 시스템이 가로채지 않고 그대로 통과
+          if (e.target.closest('button')) return;
+          // 일반 사용자: 조회 전용
+          if (userRole !== 'admin') return;
           const draggable = e.target.closest('.p-badge.available, .member-chip');
           const assigned = !draggable && e.target.closest('.p-badge.team-a, .p-badge.team-b');
           const hdr = !draggable && !assigned && e.target.closest('.court-hdr[data-court-idx]');
@@ -1778,7 +1977,20 @@
           } else if (hdr) {
             ts.el = hdr;
             ts.isGroup = false;
-            var ci = parseInt(hdr.dataset.courtIdx);
+            ts.isCourt = true;
+            ts.groupIdx = parseInt(hdr.dataset.courtIdx);
+
+            // 300ms → 코트 드래그 준비
+            ts.readyTimer = setTimeout(function () {
+              if (!ts.dragging) {
+                ts.ready = true;
+                ts.el.classList.add('touch-drag-ready');
+                if (navigator.vibrate) navigator.vibrate(30);
+              }
+            }, 300);
+
+            // 700ms → 전원 대기 복귀
+            var ci = ts.groupIdx;
             ts.actionTimer = setTimeout(function () {
               if (!ts.dragging) {
                 if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
@@ -1834,13 +2046,16 @@
           }
 
           // 드래그 준비 완료 상태에서 실제 이동 시작
-          if (ts.ready && !ts.dragging && dist > 4 && (ts.personId !== null || ts.isGroup)) {
+          if (ts.ready && !ts.dragging && dist > 4 && (ts.personId !== null || ts.isGroup || ts.isCourt)) {
             clearTimeout(ts.actionTimer);
             ts.actionTimer = null;
             ts.dragging = true;
             if (ts.isGroup) {
               draggedGroupIdx = ts.groupIdx;
               document.body.classList.add('is-dragging-group');
+            } else if (ts.isCourt) {
+              draggedCourtIdx = ts.groupIdx;
+              document.body.classList.add('is-dragging-court');
             } else {
               draggedId = ts.personId;
               document.body.classList.add('is-dragging');
@@ -1891,6 +2106,17 @@
                   readyCardOver.classList.add('group-drag-over');
                 }
               }
+            } else if (ts.isCourt) {
+              // 코트 드래그: 다른 코트 카드 강조
+              document.querySelectorAll('.court-card.court-drag-over').forEach(function (el) {
+                el.classList.remove('court-drag-over');
+              });
+              if (under) {
+                var targetCourtCard = under.closest('.court-card[data-court-idx]');
+                if (targetCourtCard && parseInt(targetCourtCard.dataset.courtIdx) !== draggedCourtIdx) {
+                  targetCourtCard.classList.add('court-drag-over');
+                }
+              }
             } else {
               // 인원 드래그: 슬롯/멤버칩 강조
               document.querySelectorAll('.drop-slot.drag-over, .member-chip.drag-over').forEach(function (el) {
@@ -1927,10 +2153,23 @@
             document.querySelectorAll('.court-card.group-drag-over').forEach(function (el) {
               el.classList.remove('group-drag-over');
             });
+            document.querySelectorAll('.court-card.court-drag-over').forEach(function (el) {
+              el.classList.remove('court-drag-over');
+            });
 
             var acted = false;
             if (under) {
-              if (ts.isGroup) {
+              if (ts.isCourt) {
+                // 코트 드래그: 다른 코트 카드에 드롭
+                var courtCardDst = under.closest('.court-card[data-court-idx]');
+                if (courtCardDst) {
+                  var targetCi = parseInt(courtCardDst.dataset.courtIdx);
+                  if (targetCi !== draggedCourtIdx) {
+                    onDropCourtSwap({ preventDefault: function () {}, currentTarget: courtCardDst }, targetCi);
+                    acted = true;
+                  }
+                }
+              } else if (ts.isGroup) {
                 // 그룹 드래그: 코트 카드 또는 대기조 카드에 드롭
                 var courtCard = under.closest('.court-card[data-court-idx]');
                 var readyCardDst = !courtCard && under.closest('.court-card[data-group-idx]');
@@ -1970,6 +2209,7 @@
             }
             if (!acted) {
               if (ts.isGroup) onDragEndGroup();
+              else if (ts.isCourt) onDragEndCourt();
               else onDragEnd();
             }
           }

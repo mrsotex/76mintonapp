@@ -1124,6 +1124,38 @@
         background: #e0f2f1;
       }
 
+      /* ── 코트 헤더 드래그로 코트 교체 ── */
+      body.is-dragging-court .court-card {
+        outline: 2px dashed #fb8c00;
+        cursor: copy;
+      }
+      .court-card.court-drag-over {
+        outline: 3px solid #fb8c00 !important;
+        background: #fff8f0 !important;
+        transform: scale(1.02);
+        transition: all 0.15s;
+      }
+
+      /* ── 코트 탭 선택으로 코트 교체 ── */
+      .court-card.court-tap-selected {
+        outline: 3px solid #fb8c00 !important;
+        background: #fff8f0 !important;
+        transform: scale(1.02);
+        transition: all 0.15s;
+      }
+      .court-card.court-tap-selected .court-hdr {
+        background: #fb8c00;
+        color: white;
+      }
+      body.has-court-selection .court-card[data-court-idx]:not(.court-tap-selected) {
+        outline: 2px dashed #fb8c00;
+        cursor: pointer;
+      }
+      body.has-court-selection .court-card[data-court-idx]:not(.court-tap-selected):hover {
+        outline: 3px solid #fb8c00;
+        background: #fff8f0;
+      }
+
       /* ── 클릭 선택 상태 ── */
       .p-badge.selected {
         outline: 3px solid #fb8c00 !important;
@@ -1155,3 +1187,119 @@
       body.has-selection .member-chip:hover {
         outline: 2px dashed #fb8c00;
       }
+
+      /* ══════════════════════════════════════════════
+         로그인 화면
+      ══════════════════════════════════════════════ */
+      #login-overlay {
+        position: fixed;
+        inset: 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+      }
+      .login-card {
+        background: white;
+        border-radius: 20px;
+        padding: 48px 40px 40px;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        width: 320px;
+        max-width: 90vw;
+      }
+      .login-logo {
+        font-size: 3rem;
+        margin-bottom: 16px;
+      }
+      .login-card h2 {
+        font-size: 1.4rem;
+        color: #333;
+        margin-bottom: 8px;
+        font-weight: 700;
+      }
+      .login-card p {
+        font-size: 0.9rem;
+        color: #888;
+        margin-bottom: 20px;
+      }
+      .login-input {
+        width: 100%;
+        padding: 13px 16px;
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        font-size: 1.1rem;
+        outline: none;
+        transition: border-color 0.2s;
+        text-align: center;
+        letter-spacing: 6px;
+        margin-bottom: 8px;
+        box-sizing: border-box;
+      }
+      .login-input:focus { border-color: #667eea; }
+      .login-input.error {
+        border-color: #e53935;
+        animation: shake 0.3s;
+      }
+      .login-error {
+        font-size: 0.85rem;
+        color: #e53935;
+        min-height: 22px;
+        margin-bottom: 14px;
+      }
+      .btn-login {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        letter-spacing: 2px;
+      }
+      .btn-login:hover { opacity: 0.88; }
+
+      /* ── 헤더 역할 표시 / 로그아웃 ── */
+      .header-role {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 10px;
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.9);
+      }
+      body.role-user .header-role,
+      body.role-admin .header-role {
+        display: flex;
+      }
+      .btn-logout {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 6px;
+        padding: 4px 12px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .btn-logout:hover { background: rgba(255, 255, 255, 0.35); }
+
+      /* ── 일반 사용자: 코트현황·게임준비만 표시 ── */
+      body.role-user #sec-people { display: none !important; }
+      body.role-user .setup-panel { display: none !important; }
+      body.role-user .stats      { display: none !important; }
+      body.role-user .controls   { display: none !important; }
+
+      /* ── 일반 사용자: 조회 전용 (조작 UI 숨김) ── */
+      body.role-user #btn-add-ready          { display: none !important; }
+      body.role-user .hint-text,
+      body.role-user .chint                  { display: none !important; }
+      body.role-user .court-card,
+      body.role-user .ready-card,
+      body.role-user .p-badge,
+      body.role-user .member-chip            { cursor: default !important; user-select: none; }

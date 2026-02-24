@@ -339,6 +339,7 @@
 
       /* ────── 개인 대기 복귀 ────── */
       function returnFromCourt(personId) {
+        if (userRole !== 'admin') return;
         const p = people.find((x) => x.id === personId);
         if (!p || p.groupNo === null) return;
         const court = courts[p.groupNo];
@@ -377,6 +378,7 @@
 
       /* ────── 코트 전체 대기 복귀 (제목 더블클릭) ────── */
       function returnAllFromCourt(courtIdx) {
+        if (userRole !== 'admin') return;
         const court = courts[courtIdx];
         if (!court) return;
         [...court.teamA, ...court.teamB].forEach((p) => {
@@ -415,6 +417,7 @@
       }
 
       function returnAllFromReadyGroup(groupIdx) {
+        if (userRole !== 'admin') return;
         const group = readyGroups[groupIdx];
         if (!group) return;
         [...group.teamA, ...group.teamB].forEach(p => {
@@ -429,6 +432,7 @@
       }
 
       function returnFromReadyGroup(personId) {
+        if (userRole !== 'admin') return;
         const p = people.find(x => x.id === personId);
         if (!p || p.readyGroupNo === null) return;
         const group = readyGroups[p.readyGroupNo];

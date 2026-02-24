@@ -43,8 +43,8 @@
         _refreshInterval = setInterval(function() {
           _refreshCountdown--;
           if (_refreshCountdown <= 0) {
-            _refreshCountdown = 60;
-            loadState();
+            location.reload();
+            return;
           }
           _updateRefreshDisplay();
         }, 1000);

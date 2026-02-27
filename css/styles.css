@@ -6,7 +6,10 @@
 
       body {
         font-family: 'Segoe UI', Tahoma, sans-serif;
-        background: #f0f2f5;
+        background:
+          linear-gradient(225deg, rgba(15, 23, 42, 0.86) 0%, rgba(20, 83, 45, 0.86) 100%),
+          url("../img/shuttlecock-pattern.svg") center / 220px 260px repeat;
+        background-color: #0f172a;
         color: #333;
         min-height: 100vh;
       }

@@ -56,33 +56,6 @@
         _updateRefreshDisplay();
       }
 
-      function submitLogin() {
-        const input = document.getElementById('login-input');
-        const errorEl = document.getElementById('login-error');
-        const val = input.value;
-
-        let role;
-        if (val === '') {
-          role = 'user'; // 빈 입력 → 일반 사용자
-        } else {
-          role = AUTH_CODES[val];
-          if (!role) {
-            errorEl.textContent = '인증코드가 올바르지 않습니다.';
-            input.value = '';
-            input.focus();
-            input.classList.add('error');
-            setTimeout(function() { errorEl.textContent = ''; input.classList.remove('error'); }, 2000);
-            return;
-          }
-        }
-
-        userRole = role;
-        sessionStorage.setItem('userRole', role);
-        document.getElementById('login-overlay').style.display = 'none';
-        applyRole();
-        loadState();
-      }
-
       function applyRole() {
         document.body.classList.remove('role-user', 'role-admin');
         document.body.classList.add('role-' + userRole);
@@ -96,14 +69,7 @@
         stopAutoRefresh();
         userRole = null;
         sessionStorage.removeItem('userRole');
-        document.body.classList.remove('role-user', 'role-admin');
-        document.getElementById('login-overlay').style.display = 'flex';
-        document.getElementById('login-input').value = '';
-        document.getElementById('login-error').textContent = '';
-        // 상태 초기화
-        people = []; pool = []; courts = []; readyGroups = [];
-        courtCount = 0; nextId = 1;
-        render();
+        location.href = 'login.html';
       }
 
       /* ── 클릭 선택 관련 함수 ── */
@@ -1855,17 +1821,14 @@
       }
 
       /* ── 로그인 초기화 ── */
-      document.getElementById('login-input').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') submitLogin();
-      });
-
       (function() {
         const saved = sessionStorage.getItem('userRole');
         if (saved === 'user' || saved === 'admin') {
           userRole = saved;
-          document.getElementById('login-overlay').style.display = 'none';
           applyRole();
           loadState();
+        } else {
+          location.href = 'login.html';
         }
       })();
 

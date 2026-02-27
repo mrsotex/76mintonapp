@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="260" viewBox="0 0 220 260">
+
+  <!-- Shuttlecock 1: 왼쪽 위, -25도 회전 -->
+  <g transform="translate(65,110) rotate(-25)">
+    <ellipse cx="0" cy="44" rx="15" ry="11" fill="rgba(255,255,255,0.18)"/>
+    <ellipse cx="0" cy="39" rx="9" ry="7" fill="rgba(255,255,255,0.13)"/>
+    <line x1="0" y1="32" x2="-34" y2="-44" stroke="rgba(255,255,255,0.22)" stroke-width="1.1"/>
+    <line x1="0" y1="32" x2="-22" y2="-49" stroke="rgba(255,255,255,0.22)" stroke-width="1.1"/>
+    <line x1="0" y1="32" x2="-11" y2="-52" stroke="rgba(255,255,255,0.22)" stroke-width="1.1"/>
+    <line x1="0" y1="32" x2="0"   y2="-53" stroke="rgba(255,255,255,0.22)" stroke-width="1.1"/>
+    <line x1="0" y1="32" x2="11"  y2="-52" stroke="rgba(255,255,255,0.22)" stroke-width="1.1"/>
+    <line x1="0" y1="32" x2="22"  y2="-49" stroke="rgba(255,255,255,0.22)" stroke-width="1.1"/>
+    <line x1="0" y1="32" x2="34"  y2="-44" stroke="rgba(255,255,255,0.22)" stroke-width="1.1"/>
+    <ellipse cx="0" cy="-48" rx="36" ry="8" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1.1"/>
+  </g>
+
+  <!-- Shuttlecock 2: 오른쪽 아래, +18도 회전, 약간 작게 -->
+  <g transform="translate(165,195) rotate(18)">
+    <ellipse cx="0" cy="38" rx="13" ry="10" fill="rgba(255,255,255,0.14)"/>
+    <ellipse cx="0" cy="34" rx="8"  ry="6"  fill="rgba(255,255,255,0.10)"/>
+    <line x1="0" y1="28" x2="-29" y2="-38" stroke="rgba(255,255,255,0.17)" stroke-width="1"/>
+    <line x1="0" y1="28" x2="-19" y2="-42" stroke="rgba(255,255,255,0.17)" stroke-width="1"/>
+    <line x1="0" y1="28" x2="-10" y2="-45" stroke="rgba(255,255,255,0.17)" stroke-width="1"/>
+    <line x1="0" y1="28" x2="0"   y2="-46" stroke="rgba(255,255,255,0.17)" stroke-width="1"/>
+    <line x1="0" y1="28" x2="10"  y2="-45" stroke="rgba(255,255,255,0.17)" stroke-width="1"/>
+    <line x1="0" y1="28" x2="19"  y2="-42" stroke="rgba(255,255,255,0.17)" stroke-width="1"/>
+    <line x1="0" y1="28" x2="29"  y2="-38" stroke="rgba(255,255,255,0.17)" stroke-width="1"/>
+    <ellipse cx="0" cy="-41" rx="31" ry="7" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>
+  </g>
+
+</svg>

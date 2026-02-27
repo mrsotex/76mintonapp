@@ -9,28 +9,9 @@
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏸</text></svg>"
     />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="styles.css?v=9" />
+    <link rel="stylesheet" href="css/styles.css?v=9" />
   </head>
   <body>
-    <!-- 로그인 화면 -->
-    <div id="login-overlay">
-      <div class="login-card">
-        <div class="login-logo">🏸</div>
-        <h2>76민사친</h2>
-        <p>일반 사용자는<br />비번없이 입장 버튼 누르세요</p>
-        <input
-          type="password"
-          id="login-input"
-          class="login-input"
-          placeholder="관리자만 입력"
-          maxlength="20"
-          autocomplete="off"
-        />
-        <div class="login-error" id="login-error"></div>
-        <button class="btn-login" onclick="submitLogin()">입장</button>
-      </div>
-    </div>
-
     <!-- 초기화 확인 모달 -->
     <div id="modal-overlay" onclick="closeModal()">
       <div class="modal" onclick="event.stopPropagation()">
@@ -208,6 +189,6 @@
         <button class="btn-reset" onclick="requirePassword(resetAll)">초기화</button>
       </div>
     </div>
-    <script src="script.js?v=6"></script>
+    <script src="js/script.js?v=6"></script>
   </body>
 </html>

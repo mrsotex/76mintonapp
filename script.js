@@ -1326,17 +1326,15 @@
             level: p.level,
           }));
 
-          // 6. court_assignments 동기화 (session_participants.id를 participant_id로 사용)
+          // 6. court_assignments 동기화 (name/gender/level 직접 저장 → participant_id 체인 불필요)
           if (activeSessionId) {
             const assignedRows = [];
             courts.forEach((court, ci) => {
               court.teamA.forEach((p) => {
-                const spId = p.dbId ? memberIdToSpId[p.dbId] : null;
-                if (spId) assignedRows.push({ session_id: activeSessionId, court_number: ci + 1, team: 'A', participant_id: spId });
+                assignedRows.push({ session_id: activeSessionId, court_number: ci + 1, team: 'A', name: p.name, gender: p.gender, level: p.level, member_id: p.dbId || null });
               });
               court.teamB.forEach((p) => {
-                const spId = p.dbId ? memberIdToSpId[p.dbId] : null;
-                if (spId) assignedRows.push({ session_id: activeSessionId, court_number: ci + 1, team: 'B', participant_id: spId });
+                assignedRows.push({ session_id: activeSessionId, court_number: ci + 1, team: 'B', name: p.name, gender: p.gender, level: p.level, member_id: p.dbId || null });
               });
             });
             if (assignedRows.length > 0) {
@@ -1440,14 +1438,14 @@
         if (spCheck.error) console.error('[loadState] session_participants 접근 오류:', spCheck.error);
         if (rqCheck.error) console.warn('[loadState] ready_queue 접근 오류 (테이블 미생성 가능):', rqCheck.error);
 
-        if (wqCheck.error || caCheck.error || cCheck.error || spCheck.error) {
+        if (wqCheck.error || caCheck.error || cCheck.error) {
           render();
           return;
         }
 
         const caQuery = activeSessionId
-          ? db.from('court_assignments').select('court_number, team, participant_id').eq('session_id', activeSessionId)
-          : db.from('court_assignments').select('court_number, team, participant_id').limit(0);
+          ? db.from('court_assignments').select('court_number, team, name, gender, level, member_id').eq('session_id', activeSessionId)
+          : db.from('court_assignments').select('court_number, team, name, gender, level, member_id').limit(0);
 
         const rqQuery = !rqCheck.error
           ? db.from('ready_queue').select('*').order('group_number').order('created_at')
@@ -1495,42 +1493,16 @@
         while (courts.length < courtCount) courts.push({ teamA: [], teamB: [] });
         if (courtCount > 0) document.getElementById('court-input').value = courtCount;
 
-        // participant_id (= session_participants.id) → member_id → members 순서로 조회
-        const participantIds = (caData || []).map((r) => r.participant_id).filter(Boolean);
-        let spMap = {}; // session_participants.id → members.id
-        if (participantIds.length > 0) {
-          const { data: spData, error: spErr } = await db
-            .from('session_participants')
-            .select('id, member_id')
-            .in('id', participantIds);
-          if (spErr) { console.error('[loadState] session_participants 조회 오류:', spErr); }
-          (spData || []).forEach((sp) => { spMap[sp.id] = sp.member_id; });
-        }
-
-        const memberIds = [...new Set(Object.values(spMap).filter(Boolean))];
-        let memberMap = {};
-        if (memberIds.length > 0) {
-          const { data: mData, error: mErr } = await db
-            .from('members')
-            .select('id, name, gender, level')
-            .in('id', memberIds);
-          if (mErr) { console.error('[loadState] members 조회 오류:', mErr); }
-          (mData || []).forEach((m) => { memberMap[m.id] = m; });
-        }
-
+        // court_assignments에서 name/gender/level 직접 복원 (participant_id 체인 불필요)
         (caData || []).forEach((row) => {
-          if (row.court_number == null || row.team == null) return;
-          const memberId = spMap[row.participant_id]; // session_participants.id → members.id
-          const member = memberId ? memberMap[memberId] : null;
-          if (!member) return;
-          // DB는 1-indexed → 0-indexed로 변환
-          const courtIdx = row.court_number - 1;
+          if (row.court_number == null || row.team == null || !row.name) return;
+          const courtIdx = row.court_number - 1; // DB는 1-indexed → 0-indexed
           const p = {
             id: nextId++,
-            dbId: memberId,  // members.id 저장
-            name: member.name,
-            gender: member.gender || '남',
-            level: member.level || 'A',
+            dbId: row.member_id || null,
+            name: row.name,
+            gender: row.gender || '남',
+            level: row.level || 'A',
             status: row.team === 'A' ? 'team-a' : 'team-b',
             groupNo: courtIdx,
           };

@@ -6,7 +6,7 @@
 
 body {
     font-family: 'Inter', sans-serif;
-    height: 100vh;
+    min-height: 100vh;
     overflow: hidden;
     display: flex;
     background: #0f172a;
@@ -468,4 +468,101 @@ body {
 .input-wrap.error {
     border-color: #EF4444;
     border-width: 1.5px;
+}
+
+/* ========== RESPONSIVE ========== */
+
+/* 태블릿 (769px ~ 1024px) */
+@media (max-width: 1024px) {
+    .hero-panel {
+        padding: 48px 36px;
+    }
+
+    .hero-h1 {
+        font-size: 30px;
+    }
+
+    .form-panel {
+        width: 400px;
+        padding: 0 40px;
+    }
+}
+
+/* 모바일 (~ 768px): 히어로 패널 숨기고 폼 전체 화면 */
+@media (max-width: 768px) {
+    body {
+        overflow-y: auto;
+        height: auto;
+        min-height: 100vh;
+    }
+
+    .login-container {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+    }
+
+    /* 모바일에서 히어로 패널: 간략하게 상단에 표시 */
+    .hero-panel {
+        flex: none;
+        padding: 32px 24px 28px;
+        gap: 16px;
+    }
+
+    .hero-tagline,
+    .hero-spacer,
+    .hero-features {
+        display: none;
+    }
+
+    .hero-logo-title {
+        font-size: 20px;
+    }
+
+    .hero-logo-sub {
+        font-size: 9px;
+    }
+
+    /* 폼 패널 전체 너비 + 남은 높이 꽉 채움 */
+    .form-panel {
+        width: 100%;
+        flex: 1;
+        padding: 36px 24px 48px;
+        justify-content: flex-start;
+    }
+
+    .form-inner {
+        gap: 24px;
+    }
+
+    .form-title {
+        font-size: 26px;
+    }
+
+    .badge-txt {
+        font-size: 11px;
+    }
+}
+
+/* 소형 모바일 (~ 375px) */
+@media (max-width: 375px) {
+    .hero-panel {
+        padding: 24px 20px 20px;
+    }
+
+    .form-panel {
+        padding: 28px 20px 40px;
+    }
+
+    .form-title {
+        font-size: 24px;
+    }
+
+    .login-btn {
+        height: 48px;
+    }
+
+    .kakao-btn {
+        height: 46px;
+    }
 }

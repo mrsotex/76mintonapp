@@ -24,6 +24,7 @@
 
       /* ── 로그인 / 역할 관리 ── */
       let userRole = null; // null | 'user' | 'admin'
+      let userName = null; // 로그인 시 입력한 이름
       const AUTH_CODES = { 'sdf': 'admin' };
 
       /* ── 자동 새로고침 타이머 (일반 사용자 전용) ── */
@@ -60,7 +61,10 @@
         document.body.classList.remove('role-user', 'role-admin');
         document.body.classList.add('role-' + userRole);
         const roleLabel = document.getElementById('role-label');
-        if (roleLabel) roleLabel.textContent = userRole === 'admin' ? '관리자' : '일반 사용자';
+        if (roleLabel) {
+          if (userRole === 'admin') roleLabel.textContent = '관리자';
+          else roleLabel.textContent = userName ? userName + '님' : '일반 사용자';
+        }
         if (userRole === 'user') startAutoRefresh();
         else stopAutoRefresh();
       }
@@ -68,7 +72,9 @@
       function logout() {
         stopAutoRefresh();
         userRole = null;
+        userName = null;
         sessionStorage.removeItem('userRole');
+        sessionStorage.removeItem('userName');
         location.href = 'login.html';
       }
 
@@ -1568,7 +1574,8 @@
               let html = '';
               for (const p of teamArr) {
                 const gc = p.gender === '남' ? 'm' : 'f';
-                html += `<div class="member-chip gender-${gc}"
+                const isMe = userName && p.name === userName ? ' is-me' : '';
+                html += `<div class="member-chip gender-${gc}${isMe}"
                               data-id="${p.id}"
                               draggable="true"
                               ondragstart="onDragStart(event,${p.id})"
@@ -1722,7 +1729,8 @@
                 let html = '';
                 for (const p of teamArr) {
                   const gc = p.gender === '남' ? 'm' : 'f';
-                  html += `<div class="member-chip gender-${gc}"
+                  const isMe = userName && p.name === userName ? ' is-me' : '';
+                  html += `<div class="member-chip gender-${gc}${isMe}"
                             data-id="${p.id}"
                             draggable="true"
                             ondragstart="onDragStart(event,${p.id})"
@@ -1825,6 +1833,7 @@
         const saved = sessionStorage.getItem('userRole');
         if (saved === 'user' || saved === 'admin') {
           userRole = saved;
+          userName = sessionStorage.getItem('userName') || null;
           applyRole();
           loadState();
         } else {

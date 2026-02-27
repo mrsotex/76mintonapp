@@ -69,6 +69,9 @@ function handleLogin() {
     }
 
     sessionStorage.setItem('userRole', role);
+    const userName = document.getElementById('idInput').value.trim();
+    if (userName) sessionStorage.setItem('userName', userName);
+    else sessionStorage.removeItem('userName');
     location.href = 'index.html';
 }
 

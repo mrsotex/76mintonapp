@@ -1315,3 +1315,10 @@
       body.role-user .ready-card,
       body.role-user .p-badge,
       body.role-user .member-chip            { cursor: default !important; user-select: none; }
+
+      /* ── 내 이름 강조 ── */
+      .member-chip.is-me {
+        outline: 3px solid #667eea;
+        outline-offset: 1px;
+        font-weight: 700;
+      }

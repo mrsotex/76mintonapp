@@ -24,7 +24,7 @@
 
       /* ── 로그인 / 역할 관리 ── */
       let userRole = null; // null | 'user' | 'admin'
-      const AUTH_CODES = { '76m': 'user', 'sdf': 'admin' };
+      const AUTH_CODES = { 'sdf': 'admin' };
 
       /* ── 자동 새로고침 타이머 (일반 사용자 전용) ── */
       let _refreshInterval = null;
@@ -59,15 +59,23 @@
       function submitLogin() {
         const input = document.getElementById('login-input');
         const errorEl = document.getElementById('login-error');
-        const role = AUTH_CODES[input.value];
-        if (!role) {
-          errorEl.textContent = '인증코드가 올바르지 않습니다.';
-          input.value = '';
-          input.focus();
-          input.classList.add('error');
-          setTimeout(function() { errorEl.textContent = ''; input.classList.remove('error'); }, 2000);
-          return;
+        const val = input.value;
+
+        let role;
+        if (val === '') {
+          role = 'user'; // 빈 입력 → 일반 사용자
+        } else {
+          role = AUTH_CODES[val];
+          if (!role) {
+            errorEl.textContent = '인증코드가 올바르지 않습니다.';
+            input.value = '';
+            input.focus();
+            input.classList.add('error');
+            setTimeout(function() { errorEl.textContent = ''; input.classList.remove('error'); }, 2000);
+            return;
+          }
         }
+
         userRole = role;
         sessionStorage.setItem('userRole', role);
         document.getElementById('login-overlay').style.display = 'none';

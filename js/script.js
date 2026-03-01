@@ -6,9 +6,6 @@
       const SUPABASE_ANON_KEY = 'sb_publishable_vF4WX27TEGBARd9Cx8ah_g_gRtfjwrx';
       const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-      // game_sessions 테이블에서 가져온 활성 세션 ID
-      let activeSessionId = null;
-
       let people = [];
       let pool = [];
       let courts = [];
@@ -1251,12 +1248,10 @@
       async function _doSync() {
         try {
           // 1. court_assignments → session_participants 순서로 삭제 (FK: court_assignments.participant_id → session_participants.id)
-          if (activeSessionId) {
-            const { error: caDelErr } = await db.from('court_assignments').delete().eq('session_id', activeSessionId);
-            if (caDelErr) { console.error('[sync] court_assignments 삭제 오류:', caDelErr); return; }
-            const { error: spDelErr } = await db.from('session_participants').delete().eq('session_id', activeSessionId);
-            if (spDelErr) { console.error('[sync] session_participants 삭제 오류:', spDelErr); return; }
-          }
+          const { error: caDelErr } = await db.from('court_assignments').delete().not('id', 'is', null);
+          if (caDelErr) { console.error('[sync] court_assignments 삭제 오류:', caDelErr); return; }
+          const { error: spDelErr } = await db.from('session_participants').delete().not('id', 'is', null);
+          if (spDelErr) { console.error('[sync] session_participants 삭제 오류:', spDelErr); return; }
 
           // 2. waiting_queue, courts, ready_queue 동시 삭제
           const [wqDel, cDel, rqDel] = await Promise.all([
@@ -1282,20 +1277,17 @@
           // 4. session_participants 동기화 (dbId 있는 모든 인원 → members.id 기반)
           //    court_assignments.participant_id는 session_participants.id를 FK로 참조함
           let memberIdToSpId = {}; // members.id → session_participants.id
-          if (activeSessionId) {
-            const allDbPeople = people.filter((p) => p.dbId);
-            if (allDbPeople.length > 0) {
-              const spRows = allDbPeople.map((p) => ({
-                session_id: activeSessionId,
-                member_id: p.dbId,
-                name: p.name,
-                gender: p.gender,
-                level: p.level,
-              }));
-              const { data: spData, error: spErr } = await db.from('session_participants').insert(spRows).select('id, member_id');
-              if (spErr) { console.error('[sync] session_participants 삽입 오류:', spErr); return; }
-              (spData || []).forEach((sp) => { memberIdToSpId[sp.member_id] = sp.id; });
-            }
+          const allDbPeople = people.filter((p) => p.dbId);
+          if (allDbPeople.length > 0) {
+            const spRows = allDbPeople.map((p) => ({
+              member_id: p.dbId,
+              name: p.name,
+              gender: p.gender,
+              level: p.level,
+            }));
+            const { data: spData, error: spErr } = await db.from('session_participants').insert(spRows).select('id, member_id');
+            if (spErr) { console.error('[sync] session_participants 삽입 오류:', spErr); return; }
+            (spData || []).forEach((sp) => { memberIdToSpId[sp.member_id] = sp.id; });
           }
 
           // 5. waiting_queue 동기화
@@ -1307,20 +1299,18 @@
           }));
 
           // 6. court_assignments 동기화 (name/gender/level 직접 저장 → participant_id 체인 불필요)
-          if (activeSessionId) {
-            const assignedRows = [];
-            courts.forEach((court, ci) => {
-              court.teamA.forEach((p) => {
-                assignedRows.push({ session_id: activeSessionId, court_number: ci + 1, team: 'A', name: p.name, gender: p.gender, level: p.level, member_id: p.dbId || null });
-              });
-              court.teamB.forEach((p) => {
-                assignedRows.push({ session_id: activeSessionId, court_number: ci + 1, team: 'B', name: p.name, gender: p.gender, level: p.level, member_id: p.dbId || null });
-              });
+          const assignedRows = [];
+          courts.forEach((court, ci) => {
+            court.teamA.forEach((p) => {
+              assignedRows.push({ court_number: ci + 1, team: 'A', name: p.name, gender: p.gender, level: p.level, member_id: p.dbId || null });
             });
-            if (assignedRows.length > 0) {
-              const { error: caErr } = await db.from('court_assignments').insert(assignedRows);
-              if (caErr) { console.error('[sync] court_assignments 삽입 오류:', caErr); return; }
-            }
+            court.teamB.forEach((p) => {
+              assignedRows.push({ court_number: ci + 1, team: 'B', name: p.name, gender: p.gender, level: p.level, member_id: p.dbId || null });
+            });
+          });
+          if (assignedRows.length > 0) {
+            const { error: caErr } = await db.from('court_assignments').insert(assignedRows);
+            if (caErr) { console.error('[sync] court_assignments 삽입 오류:', caErr); return; }
           }
 
           if (waitingRows.length > 0) {
@@ -1332,7 +1322,6 @@
           const readyRows = [];
           readyGroups.forEach((group, gi) => {
             group.teamA.forEach(p => readyRows.push({
-              session_id: activeSessionId || null,
               group_number: gi + 1,
               team: 'A',
               member_id: p.dbId || null,
@@ -1341,7 +1330,6 @@
               level: p.level,
             }));
             group.teamB.forEach(p => readyRows.push({
-              session_id: activeSessionId || null,
               group_number: gi + 1,
               team: 'B',
               member_id: p.dbId || null,
@@ -1355,14 +1343,6 @@
             if (rqErr) { console.error('[sync] ready_queue 삽입 오류:', rqErr); }
           }
 
-          // 8. game_sessions.court_count 동기화
-          if (activeSessionId) {
-            const { error: gsErr } = await db.from('game_sessions')
-              .update({ court_count: courtCount, updated_at: new Date().toISOString() })
-              .eq('id', activeSessionId);
-            if (gsErr) console.error('[sync] game_sessions 업데이트 오류:', gsErr);
-          }
-
           localStorage.setItem('courtCount', courtCount);
         } catch (err) {
           console.error('[sync] DB 동기화 오류:', err);
@@ -1371,39 +1351,6 @@
 
       /* ────── DB: 페이지 로드 시 상태 복원 ────── */
       async function loadState() {
-        // game_sessions에서 오늘 진행중 세션 조회, 없으면 자동 생성
-        const today = new Date().toISOString().split('T')[0];
-        const { data: sessions, error: sessErr } = await db
-          .from('game_sessions')
-          .select('id, court_count')
-          .eq('session_date', today)
-          .eq('status', '진행중')
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (sessErr) {
-          console.error('[loadState] game_sessions 조회 오류:', sessErr);
-          // 조회 자체가 실패하면 세션 생성 시도하지 않음 (RLS 등 권한 문제)
-        } else if (sessions && sessions.length > 0) {
-          activeSessionId = sessions[0].id;
-          console.log('[session] 기존 세션 사용:', activeSessionId);
-        } else {
-          // 오늘 세션이 없으면 자동 생성
-          // ※ 실패 시: Supabase에서 game_sessions 테이블에 anon INSERT 정책 추가 필요
-          //   SQL: CREATE POLICY "anon_all" ON game_sessions FOR ALL TO anon USING (true) WITH CHECK (true);
-          const { data: newSess, error: createErr } = await db
-            .from('game_sessions')
-            .insert({ session_name: `${today} 배드민턴` })
-            .select('id')
-            .single();
-          if (createErr) {
-            console.error('[session] 세션 생성 오류 (game_sessions anon INSERT 정책 확인 필요):', createErr);
-          } else {
-            activeSessionId = newSess.id;
-            console.log('[session] 새 세션 생성:', activeSessionId);
-          }
-        }
-
         const [wqCheck, caCheck, cCheck, spCheck, rqCheck] = await Promise.all([
           db.from('waiting_queue').select('id').limit(1),
           db.from('court_assignments').select('id').limit(1),
@@ -1423,9 +1370,7 @@
           return;
         }
 
-        const caQuery = activeSessionId
-          ? db.from('court_assignments').select('court_number, team, name, gender, level, member_id').eq('session_id', activeSessionId)
-          : db.from('court_assignments').select('court_number, team, name, gender, level, member_id').limit(0);
+        const caQuery = db.from('court_assignments').select('court_number, team, name, gender, level, member_id');
 
         const rqQuery = !rqCheck.error
           ? db.from('ready_queue').select('*').order('group_number').order('created_at')

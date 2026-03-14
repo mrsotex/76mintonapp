@@ -9,7 +9,7 @@
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏸</text></svg>"
     />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="css/styles.css?v=9" />
+    <link rel="stylesheet" href="css/styles.css?v=10" />
   </head>
   <body>
     <!-- 초기화 확인 모달 -->
@@ -55,6 +55,7 @@
       <div class="header-role" id="header-role">
         <span id="role-label"></span>
         <button class="btn-member-mgmt" id="btn-member-mgmt" onclick="openMemberMgmt()">회원관리</button>
+        <button class="btn-game-count" onclick="openGameCountMgmt()">게임횟수</button>
         <button class="btn-logout" onclick="logout()">로그아웃</button>
         <span id="refresh-timer" class="refresh-timer"></span>
       </div>
@@ -139,6 +140,21 @@
       </div>
     </div>
 
+    <!-- 게임 횟수 관리 모달 -->
+    <div id="game-count-overlay" class="member-mgmt-overlay" style="display:none" onclick="closeGameCountMgmt()">
+      <div class="member-mgmt-modal game-count-modal" onclick="event.stopPropagation()">
+        <div class="member-mgmt-header">
+          <h2>게임 횟수 관리</h2>
+          <button class="btn-close-mgmt" onclick="closeGameCountMgmt()">✕</button>
+        </div>
+        <div class="game-count-toolbar">
+          <span class="game-count-date-label" id="gc-date-label"></span>
+          <button class="btn-gc-reset-all" onclick="resetAllGameCount()">전체 초기화</button>
+        </div>
+        <div class="game-count-list" id="game-count-list"></div>
+      </div>
+    </div>
+
     <div class="main-content">
     <div class="container">
       <!-- Stats -->
@@ -160,11 +176,14 @@
       <div class="courts-ready-wrapper">
         <!-- 코트 현황 (항상 표시) -->
         <div class="section" id="sec-courts" style="display: none">
-          <h2>
-            코트 현황
-            <span class="hint-text desktop-hint">코트 제목 더블클릭 → 전원 대기 복귀</span>
-            <span class="hint-text touch-hint">제목 0.7초 길게 누르기 → 전원 복귀</span>
-          </h2>
+          <div class="courts-section-header">
+            <h2>
+              코트 현황
+              <span class="hint-text desktop-hint">코트 제목 더블클릭 → 전원 대기 복귀</span>
+              <span class="hint-text touch-hint">제목 0.7초 길게 누르기 → 전원 복귀</span>
+            </h2>
+            <input type="date" id="court-date" class="court-date-picker" onchange="onCourtDateChange()"/>
+          </div>
           <div class="courts-grid" id="courts-grid"></div>
         </div>
 
@@ -256,6 +275,6 @@
         <button class="btn-reset" onclick="requirePassword(resetAll)">초기화</button>
     </div>
 
-    <script src="js/script.js?v=7"></script>
+    <script src="js/script.js?v=8"></script>
   </body>
 </html>

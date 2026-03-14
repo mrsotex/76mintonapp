@@ -54,6 +54,103 @@
         _updateRefreshDisplay();
       }
 
+      /* ── 게임 횟수 트래킹 ── */
+      let gameCountMap = {}; // { stableKey: count } 현재 날짜 기준
+
+      function gcKey(p) {
+        return p.dbId ? String(p.dbId) : p.name;
+      }
+      function getGameCount(p) {
+        return gameCountMap[gcKey(p)] || 0;
+      }
+      function incrementGameCount(p) {
+        const k = gcKey(p);
+        gameCountMap[k] = (gameCountMap[k] || 0) + 1;
+        saveGameCount();
+      }
+      function saveGameCount() {
+        const date = document.getElementById('court-date')?.value || '';
+        if (!date) return;
+        const stored = JSON.parse(localStorage.getItem('gameCount') || '{}');
+        stored[date] = gameCountMap;
+        localStorage.setItem('gameCount', JSON.stringify(stored));
+      }
+      function loadGameCount() {
+        const date = document.getElementById('court-date')?.value || '';
+        const stored = JSON.parse(localStorage.getItem('gameCount') || '{}');
+        gameCountMap = stored[date] ? { ...stored[date] } : {};
+      }
+      function onCourtDateChange() {
+        loadGameCount();
+        render();
+      }
+
+      /* ── 게임 횟수 관리 팝업 ── */
+      function openGameCountMgmt() {
+        renderGameCountList();
+        document.getElementById('game-count-overlay').style.display = 'flex';
+      }
+      function closeGameCountMgmt() {
+        document.getElementById('game-count-overlay').style.display = 'none';
+      }
+      function renderGameCountList() {
+        const date = document.getElementById('court-date')?.value || '';
+        document.getElementById('gc-date-label').textContent = date ? `📅 ${date}` : '';
+
+        const list = document.getElementById('game-count-list');
+        if (!people.length) {
+          list.innerHTML = '<div class="gc-empty">현재 참여 인원이 없습니다.</div>';
+          return;
+        }
+        const sorted = [...people].sort((a, b) => (getGameCount(b) - getGameCount(a)) || displayName(a).localeCompare(displayName(b), 'ko'));
+        list.innerHTML = sorted.map(p => {
+          const count = getGameCount(p);
+          const gSuffix = p.memberType === '게스트' ? '<span class="guest-g">G</span>' : '';
+          const lvChip = `<span class="lv-chip">${p.level || '?'}</span>`;
+          return `<div class="gc-row" data-id="${p.id}">
+            <div class="gc-name">${displayName(p)}${gSuffix}${lvChip}</div>
+            <div class="gc-controls">
+              <button class="btn-gc-minus" onclick="adjustGameCount(${p.id}, -1)">−</button>
+              <div class="gc-count" id="gc-cnt-${p.id}">${count}</div>
+              <button class="btn-gc-plus"  onclick="adjustGameCount(${p.id}, +1)">+</button>
+            </div>
+          </div>`;
+        }).join('');
+      }
+      function adjustGameCount(personId, delta) {
+        const p = people.find(x => x.id === personId);
+        if (!p) return;
+        const k = gcKey(p);
+        const newVal = Math.max(0, (gameCountMap[k] || 0) + delta);
+        if (newVal === 0) {
+          delete gameCountMap[k];
+        } else {
+          gameCountMap[k] = newVal;
+        }
+        saveGameCount();
+        const el = document.getElementById(`gc-cnt-${personId}`);
+        if (el) el.textContent = newVal;
+        render();
+      }
+      function resetAllGameCount() {
+        if (!confirm('모든 인원의 게임 횟수를 초기화하시겠습니까?')) return;
+        gameCountMap = {};
+        saveGameCount();
+        renderGameCountList();
+        render();
+      }
+
+      function initCourtDate() {
+        const el = document.getElementById('court-date');
+        if (!el) return;
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        el.value = `${yyyy}-${mm}-${dd}`;
+        loadGameCount();
+      }
+
       function applyRole() {
         document.body.classList.remove('role-user', 'role-admin');
         document.body.classList.add('role-' + userRole);
@@ -224,9 +321,21 @@
 
       /* 배지 안 성별·급수 표기 */
       function infoTag(p) {
-        const gc = p.gender === '남' ? 'gm' : 'gf';
-        const lc = `lv-${p.level || '?'}`;
-        return `<span class="info-sub"><span class="${gc}">${p.gender || ''}</span> · <span class="${lc}">${p.level || ''}급</span></span>`;
+        const count = getGameCount(p);
+        const countTag = count > 0 ? ` · <span class="game-count-badge">${count}</span>` : '';
+        return `<span class="info-sub"><span class="lv-chip">${p.level || '?'}</span>${countTag}</span>`;
+      }
+
+      function displayName(p) {
+        return (p.name || '').replace(/\(게\)/g, '').trim();
+      }
+
+      function guestSuffix(p) {
+        return p.memberType === '게스트' ? '<span class="guest-g">G</span>' : '';
+      }
+
+      function guestClass(p) {
+        return p.memberType === '게스트' ? ' guest' : '';
       }
 
       /* ────── 코트 수 변경 ────── */
@@ -278,6 +387,7 @@
           name,
           gender: selectedGender,
           level: selectedLevel,
+          memberType: '게스트',
           status: 'available',
           groupNo: null,
           readyGroupNo: null,
@@ -308,6 +418,7 @@
       function removePerson(id) {
         const p = people.find((x) => x.id === id);
         if (!p || p.status !== 'available') return;
+        if (!confirm(`"${p.name}" 을(를) 대기 인원에서 삭제하시겠습니까?`)) return;
         people = people.filter((x) => x.id !== id);
         pool = pool.filter((x) => x.id !== id);
         render();
@@ -324,6 +435,7 @@
           court.teamA = court.teamA.filter((x) => x.id !== personId);
           court.teamB = court.teamB.filter((x) => x.id !== personId);
         }
+        incrementGameCount(p);
         p.status = 'available';
         p.groupNo = null;
         pool.push(p);
@@ -359,6 +471,7 @@
         const court = courts[courtIdx];
         if (!court) return;
         [...court.teamA, ...court.teamB].forEach((p) => {
+          incrementGameCount(p);
           p.status = 'available';
           p.groupNo = null;
           pool.push(p);
@@ -660,7 +773,7 @@
         const emptyB = 2 - group.teamB.length;
         const totalEmpty = emptyA + emptyB;
         if (totalEmpty === 0) return;
-        const shuffled = shuffle(genderPool);
+        const shuffled = prioritySort(genderPool);
         const toAssign = shuffled.slice(0, totalEmpty);
         let idx = 0;
         while (group.teamA.length < 2 && idx < toAssign.length) {
@@ -680,8 +793,8 @@
       function assignReadyGroupMixed(groupIdx) {
         const group = readyGroups[groupIdx];
         if (!group) return;
-        const males = shuffle(pool.filter(p => p.gender === '남'));
-        const females = shuffle(pool.filter(p => p.gender === '여'));
+        const males = prioritySort(pool.filter(p => p.gender === '남'));
+        const females = prioritySort(pool.filter(p => p.gender === '여'));
         if (males.length === 0 || females.length === 0) return;
         const toAssign = [];
         let mi = 0, fi = 0;
@@ -711,7 +824,7 @@
         const existingSlots = readyGroups.reduce((s, g) => s + (4 - g.teamA.length - g.teamB.length), 0);
         if (existingSlots === 0) return;
 
-        const shuffled = shuffle(pool);
+        const shuffled = prioritySort(pool);
         let idx = 0;
 
         for (let gi = 0; gi < readyGroups.length && idx < shuffled.length; gi++) {
@@ -1227,6 +1340,38 @@
         renderMemberTable();
       }
 
+      function isInPool(m) {
+        return people.some(p => p.dbId !== null && String(p.dbId) === String(m.id));
+      }
+
+      function attendBtn(m) {
+        if (!m.is_active) return '';
+        const inPool = isInPool(m);
+        if (inPool) {
+          return `<button class="btn-row-attend" disabled title="이미 대기 중">참석중</button>`;
+        }
+        return `<button class="btn-row-attend active" onclick="addAttendee('${m.id}','${m.name}','${m.gender}','${m.level}','${m.member_type}')">참석</button>`;
+      }
+
+      function addAttendee(dbId, name, gender, level, memberType) {
+        const p = {
+          id: nextId++,
+          dbId,
+          name,
+          gender,
+          level,
+          memberType: memberType || '회원',
+          status: 'available',
+          groupNo: null,
+          readyGroupNo: null,
+        };
+        people.push(p);
+        pool.push(p);
+        render();
+        syncState();
+        renderMemberTable(); // 버튼 상태 갱신
+      }
+
       function renderMemberTable() {
         const search  = (document.getElementById('mgmt-search').value || '').trim().toLowerCase();
         const gender  = document.getElementById('mgmt-filter-gender').value;
@@ -1287,6 +1432,7 @@
             <td>${typeBadge}</td>
             <td>${activeBadge}</td>
             <td>
+              ${attendBtn(m)}
               <button class="btn-row-edit"   onclick="startEditMember('${m.id}')">수정</button>
               <button class="btn-row-delete" onclick="deleteMember('${m.id}', '${m.name}')">삭제</button>
             </td>
@@ -1338,10 +1484,29 @@
         const is_active   = document.getElementById('edit-active').value === 'true';
 
         setMgmtStatus('저장 중...');
-        const { error } = await db.from('members').update({ name, gender, level, member_type, is_active }).eq('id', id);
+        const { data: updated, error } = await db.from('members')
+          .update({ name, gender, level, member_type, is_active })
+          .eq('id', id)
+          .select();
         if (error) { setMgmtStatus('❌ 수정 실패: ' + error.message); return; }
+        if (!updated || updated.length === 0) {
+          setMgmtStatus('❌ 수정 실패: 권한이 없거나 해당 회원을 찾을 수 없습니다. (id=' + id + ')');
+          console.error('[updateMember] 업데이트된 행 없음. id:', id);
+          return;
+        }
         _editingId = null;
         setMgmtStatus('✔ 수정되었습니다.');
+
+        // 메인 앱 people 배열에도 즉시 반영
+        people.forEach(p => {
+          if (p.dbId !== null && String(p.dbId) === String(id)) {
+            p.name   = name;
+            p.gender = gender;
+            p.level  = level;
+          }
+        });
+        render();
+
         await loadMgmtMembers();
       }
 
@@ -1367,7 +1532,7 @@
         btn.disabled = true;
         btn.textContent = '불러오는 중...';
 
-        const { data, error } = await db.from('members').select('id, name, gender, level')
+        const { data, error } = await db.from('members').select('id, name, gender, level, member_type')
           .eq('is_active', true).eq('member_type', '회원');
 
         btn.disabled = false;
@@ -1390,6 +1555,7 @@
             name: member.name,
             gender: member.gender,
             level: member.level,
+            memberType: member.member_type || '회원',
             status: 'available',
             groupNo: null,
             readyGroupNo: null,
@@ -1570,6 +1736,7 @@
             name: row.name,
             gender: row.gender || '남',
             level: row.level || 'A',
+            memberType: row.member_id ? '회원' : '게스트',
             status: 'available',
             groupNo: null,
           };
@@ -1599,6 +1766,7 @@
             name: row.name,
             gender: row.gender || '남',
             level: row.level || 'A',
+            memberType: row.member_id ? '회원' : '게스트',
             status: row.team === 'A' ? 'team-a' : 'team-b',
             groupNo: courtIdx,
           };
@@ -1618,6 +1786,7 @@
             name: row.name,
             gender: row.gender || '남',
             level: row.level || 'A',
+            memberType: row.member_id ? '회원' : '게스트',
             status: row.team === 'A' ? 'ready-a' : 'ready-b',
             groupNo: null,
             readyGroupNo: gi,
@@ -1626,6 +1795,24 @@
           if (row.team === 'A') readyGroups[gi].teamA.push(p);
           else readyGroups[gi].teamB.push(p);
         });
+
+        // member_id가 있는 인원의 급수를 members 마스터 최신 정보로 업데이트
+        const memberIds = [...new Set(people.map(p => p.dbId).filter(Boolean))];
+        if (memberIds.length > 0) {
+          const { data: masterData } = await db.from('members')
+            .select('id, level, member_type')
+            .in('id', memberIds);
+          if (masterData && masterData.length > 0) {
+            const masterMap = {};
+            masterData.forEach(m => { masterMap[m.id] = m; });
+            people.forEach(p => {
+              if (p.dbId && masterMap[p.dbId]) {
+                p.level      = masterMap[p.dbId].level;
+                p.memberType = masterMap[p.dbId].member_type || '회원';
+              }
+            });
+          }
+        }
 
         render();
       }
@@ -1638,6 +1825,20 @@
           [a[i], a[j]] = [a[j], a[i]];
         }
         return a;
+      }
+
+      /* 게임횟수 적은 순으로 우선 배치, 동일 횟수 내에서는 랜덤 */
+      function prioritySort(arr) {
+        const tiers = {};
+        for (const p of arr) {
+          const c = getGameCount(p);
+          if (!tiers[c]) tiers[c] = [];
+          tiers[c].push(p);
+        }
+        return Object.keys(tiers)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .flatMap(k => shuffle(tiers[k]));
       }
 
       /* ────── 렌더 ────── */
@@ -1691,7 +1892,7 @@
               for (const p of teamArr) {
                 const gc = p.gender === '남' ? 'm' : 'f';
                 const isMe = userName && p.name === userName ? ' is-me' : '';
-                html += `<div class="member-chip gender-${gc}${isMe}"
+                html += `<div class="member-chip gender-${gc}${guestClass(p)}${isMe}"
                               data-id="${p.id}"
                               draggable="true"
                               ondragstart="onDragStart(event,${p.id})"
@@ -1701,7 +1902,7 @@
                               ondragenter="onSlotEnter(event)"
                               ondragleave="onSlotLeave(event)"
                               ondblclick="returnFromReadyGroup(${p.id})"
-                              title="더블클릭: 대기로 복귀  |  드래그: 이동">${p.name}${infoTag(p)}</div>`;
+                              title="더블클릭: 대기로 복귀  |  드래그: 이동">${displayName(p)}${guestSuffix(p)}${infoTag(p)}</div>`;
               }
               const emptyCount = 2 - teamArr.length;
               for (let i = 0; i < emptyCount; i++) {
@@ -1789,7 +1990,7 @@
             .map((p) => {
               const gc = p.gender === '남' ? 'm' : 'f';
               return `<div
-                    class="p-badge available gender-${gc}"
+                    class="p-badge available gender-${gc}${guestClass(p)}"
                     data-id="${p.id}"
                     draggable="true"
                     ondragstart="onDragStart(event,${p.id})"
@@ -1797,7 +1998,7 @@
                     onclick="onClickPoolBadge(${p.id})"
                     ondblclick="removePerson(${p.id})"
                     title="클릭: 선택 후 빈 자리 클릭으로 배정  |  드래그: 배정  |  더블클릭: 삭제"
-                >${p.name}${infoTag(p)}</div>`;
+                >${displayName(p)}${guestSuffix(p)}${infoTag(p)}</div>`;
             })
             .join('');
         }
@@ -1813,11 +2014,11 @@
               const t = p.status === 'team-a' ? 'A팀' : 'B팀';
               const ctSub = `<span class="sub">${p.groupNo + 1}번 코트 ${t}</span>`;
               return `<div
-                    class="p-badge ${p.status} gender-${gc}"
+                    class="p-badge ${p.status} gender-${gc}${guestClass(p)}"
                     data-id="${p.id}"
                     ondblclick="returnFromCourt(${p.id})"
                     title="더블클릭: 대기로 복귀"
-                >${p.name}${infoTag(p)}${ctSub}</div>`;
+                >${displayName(p)}${guestSuffix(p)}${infoTag(p)}${ctSub}</div>`;
             })
             .join('');
         }
@@ -1835,7 +2036,7 @@
                 for (const p of teamArr) {
                   const gc = p.gender === '남' ? 'm' : 'f';
                   const isMe = userName && p.name === userName ? ' is-me' : '';
-                  html += `<div class="member-chip gender-${gc}${isMe}"
+                  html += `<div class="member-chip gender-${gc}${guestClass(p)}${isMe}"
                             data-id="${p.id}"
                             draggable="true"
                             ondragstart="onDragStart(event,${p.id})"
@@ -1846,7 +2047,7 @@
                             ondragleave="onSlotLeave(event)"
                             onclick="onClickMember(${p.id})"
                             ondblclick="returnFromCourt(${p.id})"
-                            title="클릭(선택 중): 스왑  |  드래그: 위치 변경  |  더블클릭: 대기로 복귀">${p.name}${infoTag(p)}</div>`;
+                            title="클릭(선택 중): 스왑  |  드래그: 위치 변경  |  더블클릭: 대기로 복귀">${displayName(p)}${guestSuffix(p)}${infoTag(p)}</div>`;
                 }
                 const emptyCount = 2 - teamArr.length;
                 for (let i = 0; i < emptyCount; i++) {
@@ -1929,6 +2130,7 @@
           userRole = saved;
           userName = sessionStorage.getItem('userName') || null;
           applyRole();
+          initCourtDate();
           loadState();
         } else {
           location.href = 'login.html';

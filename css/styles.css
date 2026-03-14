@@ -1430,6 +1430,8 @@
       }
       .btn-member-mgmt:hover { background: rgba(255,255,255,0.30); }
       body.role-user .btn-member-mgmt { display: none !important; }
+      body.role-user .btn-game-count  { display: none !important; }
+      body.role-user .court-date-picker { display: none !important; }
 
       /* ── 회원관리 모달 오버레이 ── */
       .member-mgmt-overlay {

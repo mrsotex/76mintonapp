@@ -68,20 +68,29 @@
         gameCountMap[k] = (gameCountMap[k] || 0) + 1;
         saveGameCount();
       }
-      function saveGameCount() {
+      async function saveGameCount() {
         const date = document.getElementById('court-date')?.value || '';
         if (!date) return;
-        const stored = JSON.parse(localStorage.getItem('gameCount') || '{}');
-        stored[date] = gameCountMap;
-        localStorage.setItem('gameCount', JSON.stringify(stored));
+        // Supabase에 해당 날짜 전체 upsert
+        const rows = Object.entries(gameCountMap).map(([player_key, count]) => ({ date, player_key, count }));
+        await db.from('game_counts').delete().eq('date', date);
+        if (rows.length > 0) {
+          await db.from('game_counts').insert(rows);
+        }
       }
-      function loadGameCount() {
+      async function loadGameCount() {
         const date = document.getElementById('court-date')?.value || '';
-        const stored = JSON.parse(localStorage.getItem('gameCount') || '{}');
-        gameCountMap = stored[date] ? { ...stored[date] } : {};
+        if (!date) { gameCountMap = {}; return; }
+        const { data, error } = await db.from('game_counts').select('player_key, count').eq('date', date);
+        if (!error && data) {
+          gameCountMap = {};
+          data.forEach(row => { gameCountMap[row.player_key] = row.count; });
+        } else {
+          gameCountMap = {};
+        }
       }
-      function onCourtDateChange() {
-        loadGameCount();
+      async function onCourtDateChange() {
+        await loadGameCount();
         render();
       }
 
@@ -117,7 +126,7 @@
           </div>`;
         }).join('');
       }
-      function adjustGameCount(personId, delta) {
+      async function adjustGameCount(personId, delta) {
         const p = people.find(x => x.id === personId);
         if (!p) return;
         const k = gcKey(p);
@@ -127,20 +136,20 @@
         } else {
           gameCountMap[k] = newVal;
         }
-        saveGameCount();
         const el = document.getElementById(`gc-cnt-${personId}`);
         if (el) el.textContent = newVal;
         render();
+        await saveGameCount();
       }
-      function resetAllGameCount() {
+      async function resetAllGameCount() {
         if (!confirm('모든 인원의 게임 횟수를 초기화하시겠습니까?')) return;
         gameCountMap = {};
-        saveGameCount();
+        await saveGameCount();
         renderGameCountList();
         render();
       }
 
-      function initCourtDate() {
+      async function initCourtDate() {
         const el = document.getElementById('court-date');
         if (!el) return;
         const today = new Date();
@@ -148,7 +157,7 @@
         const mm = String(today.getMonth() + 1).padStart(2, '0');
         const dd = String(today.getDate()).padStart(2, '0');
         el.value = `${yyyy}-${mm}-${dd}`;
-        loadGameCount();
+        await loadGameCount();
       }
 
       function applyRole() {
@@ -1814,6 +1823,7 @@
           }
         }
 
+        await loadGameCount();
         render();
       }
 

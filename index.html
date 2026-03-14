@@ -48,123 +48,99 @@
     </div>
 
     <div class="header" ondblclick="location.reload()" title="더블클릭: 새로고침">
-      <h1>76민사친</h1>
-      <p>코트당 4명 &nbsp;|&nbsp; A팀 2명 vs B팀 2명</p>
+      <div class="header-left">
+        <h1>76민사친</h1>
+        <span class="header-sub">코트당 4명 &nbsp;|&nbsp; A팀 2명 vs B팀 2명</span>
+      </div>
       <div class="header-role" id="header-role">
         <span id="role-label"></span>
+        <button class="btn-member-mgmt" id="btn-member-mgmt" onclick="openMemberMgmt()">회원관리</button>
         <button class="btn-logout" onclick="logout()">로그아웃</button>
         <span id="refresh-timer" class="refresh-timer"></span>
       </div>
     </div>
 
+    <!-- 회원관리 모달 -->
+    <div id="member-mgmt-overlay" class="member-mgmt-overlay" style="display:none" onclick="closeMemberMgmt()">
+      <div class="member-mgmt-modal" onclick="event.stopPropagation()">
+        <div class="member-mgmt-header">
+          <h2>회원 관리</h2>
+          <button class="btn-close-mgmt" onclick="closeMemberMgmt()">✕</button>
+        </div>
+
+        <!-- 필터 + 추가 -->
+        <div class="member-mgmt-toolbar">
+          <input class="mgmt-search" id="mgmt-search" type="text" placeholder="이름 검색" oninput="renderMemberTable()"/>
+          <select class="mgmt-filter" id="mgmt-filter-gender" onchange="renderMemberTable()">
+            <option value="">성별 전체</option>
+            <option value="남">남</option>
+            <option value="여">여</option>
+          </select>
+          <select class="mgmt-filter" id="mgmt-filter-level" onchange="renderMemberTable()">
+            <option value="">급수 전체</option>
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+            <option value="D">D</option>
+            <option value="E">E</option>
+          </select>
+          <select class="mgmt-filter" id="mgmt-filter-type" onchange="renderMemberTable()">
+            <option value="">구분 전체</option>
+            <option value="회원">회원</option>
+            <option value="게스트">게스트</option>
+          </select>
+          <select class="mgmt-filter" id="mgmt-filter-active" onchange="renderMemberTable()">
+            <option value="true">활성</option>
+            <option value="false">비활성</option>
+            <option value="">전체</option>
+          </select>
+          <button class="btn-mgmt-add" onclick="showAddMemberRow()">+ 신규 추가</button>
+        </div>
+
+        <!-- 신규 추가 폼 -->
+        <div class="member-add-form" id="member-add-form" style="display:none">
+          <input class="mgmt-input" id="new-name" type="text" placeholder="이름" maxlength="12"/>
+          <select class="mgmt-select" id="new-gender">
+            <option value="남">남</option>
+            <option value="여">여</option>
+          </select>
+          <select class="mgmt-select" id="new-level">
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+            <option value="D">D</option>
+            <option value="E">E</option>
+          </select>
+          <select class="mgmt-select" id="new-type">
+            <option value="회원">회원</option>
+            <option value="게스트">게스트</option>
+          </select>
+          <button class="btn-mgmt-save" onclick="saveMember()">저장</button>
+          <button class="btn-mgmt-cancel" onclick="hideAddMemberRow()">취소</button>
+        </div>
+
+        <!-- 회원 목록 -->
+        <div class="member-table-wrap">
+          <table class="member-table">
+            <thead>
+              <tr>
+                <th>이름</th>
+                <th>성별</th>
+                <th>급수</th>
+                <th>구분</th>
+                <th>상태</th>
+                <th>수정/삭제</th>
+              </tr>
+            </thead>
+            <tbody id="member-table-body"></tbody>
+          </table>
+        </div>
+        <div class="mgmt-status" id="mgmt-status"></div>
+      </div>
+    </div>
+
+    <div class="main-content">
     <div class="container">
-      <!-- 코트 현황 (항상 표시) -->
-      <div class="section" id="sec-courts" style="display: none">
-        <h2>
-          코트 현황
-          <span class="hint-text desktop-hint">코트 제목 더블클릭 → 전원 대기 복귀</span>
-          <span class="hint-text touch-hint">제목 0.7초 길게 누르기 → 전원 복귀</span>
-        </h2>
-        <div class="courts-grid" id="courts-grid"></div>
-      </div>
-
-      <!-- 게임준비 -->
-      <div class="section" id="sec-ready">
-        <h2>
-          게임준비
-          <span class="hint-text desktop-hint"
-            >대기조 헤더 드래그 → 코트에 놓으면 이동 &nbsp;/&nbsp; 더블클릭 → 전원 복귀</span
-          >
-          <span class="hint-text touch-hint"
-            >헤더 길게 누르기 → 전원 복귀 &nbsp;/&nbsp; 짧게 누르기 → 조 선택 후 코트 탭</span
-          >
-          <button class="btn-add-ready" onclick="addReadyGroup()" id="btn-add-ready">+ 대기조 추가</button>
-        </h2>
-        <div class="courts-grid" id="ready-grid">
-          <div class="empty-msg">+ 대기조 추가 버튼으로 게임을 준비하세요.</div>
-        </div>
-      </div>
-
-      <!-- 전체 인원 현황 -->
-      <div class="section" id="sec-people">
-        <h2>전체 인원 현황</h2>
-
-        <!-- 대기 인원 -->
-        <div class="sub-section">
-          <div class="sub-header">
-            <span class="sub-title available-title">대기 인원</span>
-            <span class="sub-count" id="count-pool">0명</span>
-            <span class="hint-text desktop-hint"
-              >클릭: 선택 → 빈 자리 클릭으로 배정 &nbsp;/&nbsp; 드래그: 배정 &nbsp;/&nbsp; 더블클릭: 삭제</span
-            >
-            <span class="hint-text touch-hint"
-              >탭: 선택 → 빈 자리 탭으로 배정 &nbsp;/&nbsp; 0.7초 길게 누르기: 삭제</span
-            >
-          </div>
-          <div class="people-grid" id="pool-grid">
-            <div class="empty-msg">이름을 입력해서 인원을 추가하세요.</div>
-          </div>
-        </div>
-
-        <div class="section-divider"></div>
-
-        <!-- 코트 배정 인원 -->
-        <div class="sub-section">
-          <div class="sub-header">
-            <span class="sub-title assigned-title">코트 배정 인원</span>
-            <span class="sub-count" id="count-assigned">0명</span>
-            <span class="hint-text desktop-hint">더블클릭 → 대기로 복귀</span>
-            <span class="hint-text touch-hint">0.7초 길게 누르기 → 대기로 복귀</span>
-          </div>
-          <div class="people-grid" id="assigned-grid">
-            <div class="empty-msg">아직 배정된 인원이 없습니다.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 설정 패널 -->
-      <div class="setup-panel">
-        <div class="setup-row">
-          <label>코트 수</label>
-          <input
-            class="court-input"
-            id="court-input"
-            type="number"
-            min="1"
-            max="50"
-            placeholder="0"
-            oninput="onCourtChange()"
-          />
-          <span class="court-hint">코트당 A팀 2명 vs B팀 2명</span>
-          <span class="court-badge" id="court-badge"></span>
-        </div>
-        <hr class="divider" />
-        <div class="setup-row">
-          <label>이름 입력</label>
-          <input
-            class="add-input"
-            id="name-input"
-            type="text"
-            placeholder="이름 입력 후 Enter 또는 추가 버튼"
-            maxlength="12"
-          />
-          <!-- 성별 -->
-          <div class="toggle-group">
-            <button class="toggle-btn active" id="btn-male" onclick="setGender('남')">남</button>
-            <button class="toggle-btn" id="btn-female" onclick="setGender('여')">여</button>
-          </div>
-          <!-- 급수 -->
-          <div class="toggle-group">
-            <button class="toggle-btn active" id="btn-lv-A" onclick="setLevel('A')">A</button>
-            <button class="toggle-btn" id="btn-lv-B" onclick="setLevel('B')">B</button>
-            <button class="toggle-btn" id="btn-lv-C" onclick="setLevel('C')">C</button>
-            <button class="toggle-btn" id="btn-lv-D" onclick="setLevel('D')">D</button>
-            <button class="toggle-btn" id="btn-lv-E" onclick="setLevel('E')">E</button>
-          </div>
-          <button class="btn-add" onclick="addPerson()">추가</button>
-        </div>
-      </div>
-
       <!-- Stats -->
       <div class="stats">
         <div class="stat-card s-total">
@@ -181,13 +157,103 @@
         </div>
       </div>
 
-      <!-- Controls -->
-      <div class="controls">
+      <div class="courts-ready-wrapper">
+        <!-- 코트 현황 (항상 표시) -->
+        <div class="section" id="sec-courts" style="display: none">
+          <h2>
+            코트 현황
+            <span class="hint-text desktop-hint">코트 제목 더블클릭 → 전원 대기 복귀</span>
+            <span class="hint-text touch-hint">제목 0.7초 길게 누르기 → 전원 복귀</span>
+          </h2>
+          <div class="courts-grid" id="courts-grid"></div>
+        </div>
+
+        <!-- 게임준비 -->
+        <div class="section" id="sec-ready">
+          <h2>
+            게임준비
+            <button class="btn-add-ready" onclick="addReadyGroup()" id="btn-add-ready">+ 대기조 추가</button>
+          </h2>
+          <div class="courts-grid" id="ready-grid">
+            <div class="empty-msg">+ 대기조 추가 버튼으로 게임을 준비하세요.</div>
+          </div>
+        </div>
+
+        <!-- 전체 인원 현황 -->
+        <div class="section" id="sec-people">
+          <h2>전체 인원 현황</h2>
+
+          <!-- 대기 인원 -->
+          <div class="sub-section">
+            <div class="sub-header">
+              <span class="sub-title available-title">대기 인원</span>
+              <span class="sub-count" id="count-pool">0명</span>
+            </div>
+            <div class="people-grid" id="pool-grid">
+              <div class="empty-msg">이름을 입력해서 인원을 추가하세요.</div>
+            </div>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <!-- 코트 배정 인원 -->
+          <div class="sub-section">
+            <div class="sub-header">
+              <span class="sub-title assigned-title">코트 배정 인원</span>
+              <span class="sub-count" id="count-assigned">0명</span>
+            </div>
+            <div class="people-grid" id="assigned-grid">
+              <div class="empty-msg">아직 배정된 인원이 없습니다.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /container -->
+    </div><!-- /main-content -->
+
+    <!-- 푸터 토글 버튼 -->
+    <button class="footer-toggle" id="footer-toggle" onclick="toggleFooter()" title="입력 영역 열기/닫기">▲</button>
+
+    <!-- 설정 패널 + 컨트롤 (footer) -->
+    <div class="setup-panel" id="setup-panel">
+        <label>코트 수</label>
+        <input
+          class="court-input"
+          id="court-input"
+          type="number"
+          min="1"
+          max="50"
+          placeholder="0"
+          oninput="onCourtChange()"
+        />
+        <span class="court-badge" id="court-badge"></span>
+        <div class="setup-divider"></div>
+        <label>이름 입력</label>
+        <input
+          class="add-input"
+          id="name-input"
+          type="text"
+          placeholder="이름 입력 후 Enter"
+          maxlength="12"
+        />
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="btn-male" onclick="setGender('남')">남</button>
+          <button class="toggle-btn" id="btn-female" onclick="setGender('여')">여</button>
+        </div>
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="btn-lv-A" onclick="setLevel('A')">A</button>
+          <button class="toggle-btn" id="btn-lv-B" onclick="setLevel('B')">B</button>
+          <button class="toggle-btn" id="btn-lv-C" onclick="setLevel('C')">C</button>
+          <button class="toggle-btn" id="btn-lv-D" onclick="setLevel('D')">D</button>
+          <button class="toggle-btn" id="btn-lv-E" onclick="setLevel('E')">E</button>
+        </div>
+        <button class="btn-add" onclick="addPerson()">추가</button>
+        <div class="setup-divider"></div>
         <button class="btn-primary" id="btn-assign" onclick="requirePassword(assignCourts)" disabled>랜덤 배정</button>
-        <button class="btn-sample" onclick="requirePassword(generateSampleData)">샘플 데이터 생성</button>
+        <button class="btn-sample" onclick="requirePassword(generateSampleData)">샘플 데이터</button>
         <button class="btn-fetch" id="btn-fetch" onclick="requirePassword(fetchMembers)">회원 가져오기</button>
         <button class="btn-reset" onclick="requirePassword(resetAll)">초기화</button>
-      </div>
     </div>
 
     <script src="js/script.js?v=7"></script>

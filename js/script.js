@@ -1188,6 +1188,177 @@
         syncState();
       }
 
+      /* ════════════════════════════════════════════
+         회원 마스터 CRUD
+      ════════════════════════════════════════════ */
+
+      let _mgmtMembers = []; // 모달 내 회원 목록 캐시
+      let _editingId = null; // 현재 인라인 편집 중인 DB id
+
+      async function openMemberMgmt() {
+        document.getElementById('member-mgmt-overlay').style.display = 'flex';
+        setMgmtStatus('');
+        hideAddMemberRow();
+        await loadMgmtMembers();
+      }
+
+      /* ── 푸터 토글 ── */
+      function toggleFooter() {
+        const panel  = document.getElementById('setup-panel');
+        const toggle = document.getElementById('footer-toggle');
+        const hidden = panel.classList.toggle('footer-hidden');
+        toggle.textContent = hidden ? '▲' : '▼';
+        toggle.title = hidden ? '입력 영역 열기' : '입력 영역 닫기';
+      }
+
+      function closeMemberMgmt() {
+        document.getElementById('member-mgmt-overlay').style.display = 'none';
+        _editingId = null;
+      }
+
+      async function loadMgmtMembers() {
+        setMgmtStatus('불러오는 중...');
+        const { data, error } = await db.from('members')
+          .select('id, name, gender, level, member_type, is_active')
+          .order('name');
+        if (error) { setMgmtStatus('❌ 불러오기 실패: ' + error.message); return; }
+        _mgmtMembers = data || [];
+        setMgmtStatus('');
+        renderMemberTable();
+      }
+
+      function renderMemberTable() {
+        const search  = (document.getElementById('mgmt-search').value || '').trim().toLowerCase();
+        const gender  = document.getElementById('mgmt-filter-gender').value;
+        const level   = document.getElementById('mgmt-filter-level').value;
+        const type    = document.getElementById('mgmt-filter-type').value;
+        const active  = document.getElementById('mgmt-filter-active').value;
+
+        const filtered = _mgmtMembers.filter(m => {
+          if (search && !m.name.toLowerCase().includes(search)) return false;
+          if (gender && m.gender !== gender) return false;
+          if (level  && m.level  !== level)  return false;
+          if (type   && m.member_type !== type) return false;
+          if (active !== '' && String(m.is_active) !== active) return false;
+          return true;
+        });
+
+        const tbody = document.getElementById('member-table-body');
+        if (filtered.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:24px">조건에 맞는 회원이 없습니다.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = filtered.map(m => {
+          const isEditing = _editingId !== null && String(_editingId) === String(m.id);
+          const genderBadge = `<span class="badge-gender-${m.gender === '남' ? 'm' : 'f'}">${m.gender}</span>`;
+          const typeBadge   = `<span class="badge-type-${m.member_type === '회원' ? 'member' : 'guest'}">${m.member_type}</span>`;
+          const activeBadge = `<span class="badge-${m.is_active ? 'active' : 'inactive'}">${m.is_active ? '활성' : '비활성'}</span>`;
+
+          if (isEditing) {
+            return `<tr class="editing" data-id="${m.id}">
+              <td><input class="td-input" id="edit-name" value="${m.name}" maxlength="12"/></td>
+              <td><select class="td-select" id="edit-gender">
+                <option value="남" ${m.gender==='남'?'selected':''}>남</option>
+                <option value="여" ${m.gender==='여'?'selected':''}>여</option>
+              </select></td>
+              <td><select class="td-select" id="edit-level">
+                ${['A','B','C','D','E'].map(l=>`<option value="${l}" ${m.level===l?'selected':''}>${l}</option>`).join('')}
+              </select></td>
+              <td><select class="td-select" id="edit-type">
+                <option value="회원" ${m.member_type==='회원'?'selected':''}>회원</option>
+                <option value="게스트" ${m.member_type==='게스트'?'selected':''}>게스트</option>
+              </select></td>
+              <td><select class="td-select" id="edit-active">
+                <option value="true"  ${m.is_active ?'selected':''}>활성</option>
+                <option value="false" ${!m.is_active?'selected':''}>비활성</option>
+              </select></td>
+              <td>
+                <button class="btn-row-save"   onclick="updateMember('${m.id}')">저장</button>
+                <button class="btn-row-cancel" onclick="cancelEditMember()">취소</button>
+              </td>
+            </tr>`;
+          }
+
+          return `<tr data-id="${m.id}">
+            <td>${m.name}</td>
+            <td>${genderBadge}</td>
+            <td>${m.level}</td>
+            <td>${typeBadge}</td>
+            <td>${activeBadge}</td>
+            <td>
+              <button class="btn-row-edit"   onclick="startEditMember('${m.id}')">수정</button>
+              <button class="btn-row-delete" onclick="deleteMember('${m.id}', '${m.name}')">삭제</button>
+            </td>
+          </tr>`;
+        }).join('');
+      }
+
+      function showAddMemberRow() {
+        document.getElementById('member-add-form').style.display = 'flex';
+        document.getElementById('new-name').focus();
+      }
+      function hideAddMemberRow() {
+        document.getElementById('member-add-form').style.display = 'none';
+        document.getElementById('new-name').value = '';
+      }
+
+      async function saveMember() {
+        const name = document.getElementById('new-name').value.trim();
+        if (!name) { setMgmtStatus('❌ 이름을 입력하세요.'); return; }
+        const gender      = document.getElementById('new-gender').value;
+        const level       = document.getElementById('new-level').value;
+        const member_type = document.getElementById('new-type').value;
+
+        setMgmtStatus('저장 중...');
+        const { error } = await db.from('members').insert({ name, gender, level, member_type, is_active: true });
+        if (error) { setMgmtStatus('❌ 저장 실패: ' + error.message); return; }
+        setMgmtStatus('✔ 저장되었습니다.');
+        hideAddMemberRow();
+        await loadMgmtMembers();
+      }
+
+      function startEditMember(id) {
+        _editingId = id;
+        renderMemberTable();
+        const input = document.getElementById('edit-name');
+        if (input) input.focus();
+      }
+      function cancelEditMember() {
+        _editingId = null;
+        renderMemberTable();
+      }
+
+      async function updateMember(id) {
+        const name        = document.getElementById('edit-name').value.trim();
+        if (!name) { setMgmtStatus('❌ 이름을 입력하세요.'); return; }
+        const gender      = document.getElementById('edit-gender').value;
+        const level       = document.getElementById('edit-level').value;
+        const member_type = document.getElementById('edit-type').value;
+        const is_active   = document.getElementById('edit-active').value === 'true';
+
+        setMgmtStatus('저장 중...');
+        const { error } = await db.from('members').update({ name, gender, level, member_type, is_active }).eq('id', id);
+        if (error) { setMgmtStatus('❌ 수정 실패: ' + error.message); return; }
+        _editingId = null;
+        setMgmtStatus('✔ 수정되었습니다.');
+        await loadMgmtMembers();
+      }
+
+      async function deleteMember(id, name) {
+        if (!confirm(`"${name}" 회원을 비활성 처리하시겠습니까?`)) return;
+        setMgmtStatus('처리 중...');
+        const { error } = await db.from('members').update({ is_active: false }).eq('id', id);
+        if (error) { setMgmtStatus('❌ 삭제 실패: ' + error.message); return; }
+        setMgmtStatus('✔ 비활성 처리되었습니다.');
+        await loadMgmtMembers();
+      }
+
+      function setMgmtStatus(msg) {
+        const el = document.getElementById('mgmt-status');
+        if (el) el.textContent = msg;
+      }
+
       /* ────── DB: 회원 가져오기 (버튼 클릭 → 기존 인원에 추가) ────── */
       async function fetchMembers() {
         const btn = document.getElementById('btn-fetch');
@@ -1530,7 +1701,7 @@
                               ondragenter="onSlotEnter(event)"
                               ondragleave="onSlotLeave(event)"
                               ondblclick="returnFromReadyGroup(${p.id})"
-                              title="더블클릭: 대기로 복귀  |  드래그: 이동">${p.name}${infoTag(p)}</div><br>`;
+                              title="더블클릭: 대기로 복귀  |  드래그: 이동">${p.name}${infoTag(p)}</div>`;
               }
               const emptyCount = 2 - teamArr.length;
               for (let i = 0; i < emptyCount; i++) {
@@ -1543,7 +1714,7 @@
                               ondragenter="onSlotEnter(event)"
                               ondragleave="onSlotLeave(event)"
                               onclick="onClickReadySlot(${gi},'${team}')"
-                          >빈 자리</div><br>`;
+                          >빈 자리</div>`;
               }
               return html;
             };
@@ -1591,22 +1762,11 @@
                                   title="대기조 삭제 (배정 인원 대기 복귀)"
                               >✕</button>
                           </div>
-                          <span class="chint">
-                              ${risFull ? '✔ 준비완료' : `${rtotal}/4명`}
-                              &nbsp;|&nbsp; 클릭 → 코트 배정
-                          </span>
                       </div>
                   </div>
                   <div class="court-body">
-                      <div class="team-box ta">
-                          <div class="team-lbl">A팀</div>
-                          ${renderReadySlots(group.teamA, 'A')}
-                      </div>
-                      <div class="vs-col">VS</div>
-                      <div class="team-box tb">
-                          <div class="team-lbl">B팀</div>
-                          ${renderReadySlots(group.teamB, 'B')}
-                      </div>
+                      ${renderReadySlots(group.teamA, 'A')}
+                      ${renderReadySlots(group.teamB, 'B')}
                   </div>
               </div>`;
           }).join('');
@@ -1686,7 +1846,7 @@
                             ondragleave="onSlotLeave(event)"
                             onclick="onClickMember(${p.id})"
                             ondblclick="returnFromCourt(${p.id})"
-                            title="클릭(선택 중): 스왑  |  드래그: 위치 변경  |  더블클릭: 대기로 복귀">${p.name}${infoTag(p)}</div><br>`;
+                            title="클릭(선택 중): 스왑  |  드래그: 위치 변경  |  더블클릭: 대기로 복귀">${p.name}${infoTag(p)}</div>`;
                 }
                 const emptyCount = 2 - teamArr.length;
                 for (let i = 0; i < emptyCount; i++) {
@@ -1699,7 +1859,7 @@
                             ondragenter="onSlotEnter(event)"
                             ondragleave="onSlotLeave(event)"
                             onclick="onClickSlot(${ci},'${team}')"
-                        >빈 자리</div><br>`;
+                        >빈 자리</div>`;
                 }
                 return html;
               };
@@ -1725,22 +1885,11 @@
                             title="클릭: 코트 선택 후 다른 코트 탭 → 교체  |  드래그: 코트 인원 교체  |  더블클릭: 전원 대기로 복귀">
                             <span>${ci + 1}번 </span>
                             <div class="court-hdr-right">
-                                <span class="chint">
-                                    ${isFull ? '✔ 완료' : `${total}/4명`}
-                                    &nbsp;|&nbsp; ${isTapSelected ? '⬅ 다른 코트 탭해서 교체' : '제목 클릭 → 코트 교체'}
-                                </span>
                             </div>
                         </div>
                         <div class="court-body">
-                            <div class="team-box ta">
-                                <div class="team-lbl">A팀</div>
-                                ${renderSlots(court.teamA, 'A')}
-                            </div>
-                            <div class="vs-col">VS</div>
-                            <div class="team-box tb">
-                                <div class="team-lbl">B팀</div>
-                                ${renderSlots(court.teamB, 'B')}
-                            </div>
+                            ${renderSlots(court.teamA, 'A')}
+                            ${renderSlots(court.teamB, 'B')}
                         </div>
                     </div>`;
             })

@@ -37,12 +37,6 @@ function handleLogin() {
     location.href = 'index.html';
 }
 
-/* ---- 카카오 로그인 ---- */
-function handleKakaoLogin() {
-    // TODO: 카카오 SDK 연결
-    console.log('카카오 로그인 시도');
-}
-
 /* ---- 입력 시 에러 초기화 ---- */
 document.getElementById('idInput').addEventListener('input', function() {
     if (this.value.trim()) clearError('idWrap', 'idError');

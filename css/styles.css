@@ -457,6 +457,12 @@
         opacity: 0.35;
         transform: scale(0.96);
       }
+      .p-badge.resting {
+        opacity: 0.45;
+        filter: grayscale(1);
+        cursor: default;
+        pointer-events: auto;
+      }
       .p-badge.team-a,
       .p-badge.team-b {
         cursor: pointer;
@@ -518,6 +524,20 @@
         flex-direction: column;
         align-items: flex-end;
         gap: 4px;
+      }
+      .btn-end-game {
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #fff;
+        background: rgba(239, 68, 68, 0.75);
+        border: 1px solid rgba(255,255,255,0.3);
+        border-radius: 5px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .btn-end-game:hover {
+        background: rgba(239, 68, 68, 1);
       }
       .court-hdr-btns {
         display: flex;

@@ -21,25 +21,47 @@ function clearError(wrapId, errorId) {
 }
 
 /* ---- 로그인 처리 ---- */
-const ADMIN_CODE = 'sdf';
+const ADMIN_NAME = '관리자';
+const ADMIN_PW = 'sdf';
 
 function handleLogin() {
-    const id = document.getElementById('idInput').value.trim();
+    const name = document.getElementById('idInput').value.trim();
 
     clearError('idWrap', 'idError');
+    clearError('pwWrap', 'pwError');
 
-    const role = (id === ADMIN_CODE) ? 'admin' : 'user';
-    const displayName = (id === ADMIN_CODE) ? '관리자' : id;
+    if (name === ADMIN_NAME) {
+        const pw = document.getElementById('pwInput').value;
+        if (pw !== ADMIN_PW) {
+            showError('pwWrap', 'pwError');
+            return;
+        }
+        sessionStorage.setItem('userRole', 'admin');
+        sessionStorage.setItem('userName', '관리자');
+    } else {
+        sessionStorage.setItem('userRole', 'user');
+        if (name) sessionStorage.setItem('userName', name);
+        else sessionStorage.removeItem('userName');
+    }
 
-    sessionStorage.setItem('userRole', role);
-    if (displayName) sessionStorage.setItem('userName', displayName);
-    else sessionStorage.removeItem('userName');
     location.href = 'index.html';
 }
 
-/* ---- 입력 시 에러 초기화 ---- */
+/* ---- 이름 입력 시 관리자 비밀번호 필드 토글 ---- */
 document.getElementById('idInput').addEventListener('input', function() {
-    if (this.value.trim()) clearError('idWrap', 'idError');
+    const pwGroup = document.getElementById('pwGroup');
+    if (this.value.trim() === ADMIN_NAME) {
+        pwGroup.style.display = '';
+    } else {
+        pwGroup.style.display = 'none';
+        document.getElementById('pwInput').value = '';
+        clearError('pwWrap', 'pwError');
+    }
+});
+
+/* ---- 입력 시 에러 초기화 ---- */
+document.getElementById('pwInput').addEventListener('input', function() {
+    if (this.value) clearError('pwWrap', 'pwError');
 });
 
 /* ---- Enter 키로 로그인 ---- */

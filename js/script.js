@@ -243,7 +243,13 @@
         }
       }
 
-      function onClickPoolBadge(personId) {
+      function onPoolBadgeClick(event, personId) {
+        if (event.shiftKey) {
+          toggleResting(personId);
+          return;
+        }
+        const p = people.find(x => x.id === personId);
+        if (!p || p.status === 'resting') return;
         if (selectedId === personId) {
           deselectAll();
           return;
@@ -434,6 +440,22 @@
         syncState();
       }
 
+      /* ────── 휴식 상태 토글 ────── */
+      function toggleResting(personId) {
+        if (userRole !== 'admin') return;
+        const p = people.find((x) => x.id === personId);
+        if (!p) return;
+        if (p.status === 'available') {
+          pool = pool.filter((x) => x.id !== personId);
+          p.status = 'resting';
+        } else if (p.status === 'resting') {
+          p.status = 'available';
+          pool.push(p);
+        }
+        render();
+        syncState();
+      }
+
       /* ────── 개인 대기 복귀 ────── */
       function returnFromCourt(personId) {
         if (userRole !== 'admin') return;
@@ -444,7 +466,6 @@
           court.teamA = court.teamA.filter((x) => x.id !== personId);
           court.teamB = court.teamB.filter((x) => x.id !== personId);
         }
-        incrementGameCount(p);
         p.status = 'available';
         p.groupNo = null;
         pool.push(p);
@@ -474,8 +495,24 @@
         syncState();
       }
 
-      /* ────── 코트 전체 대기 복귀 (제목 더블클릭) ────── */
+      /* ────── 코트 전체 대기 복귀 (제목 더블클릭 - 횟수 증가 없음) ────── */
       function returnAllFromCourt(courtIdx) {
+        if (userRole !== 'admin') return;
+        const court = courts[courtIdx];
+        if (!court) return;
+        [...court.teamA, ...court.teamB].forEach((p) => {
+          p.status = 'available';
+          p.groupNo = null;
+          pool.push(p);
+        });
+        court.teamA = [];
+        court.teamB = [];
+        render();
+        syncState();
+      }
+
+      /* ────── 게임 종료 버튼 (횟수 증가 포함) ────── */
+      function endGame(courtIdx) {
         if (userRole !== 'admin') return;
         const court = courts[courtIdx];
         if (!court) return;
@@ -1599,15 +1636,17 @@
           const { error: spDelErr } = await db.from('session_participants').delete().not('id', 'is', null);
           if (spDelErr) { console.error('[sync] session_participants 삭제 오류:', spDelErr); return; }
 
-          // 2. waiting_queue, courts, ready_queue 동시 삭제
-          const [wqDel, cDel, rqDel] = await Promise.all([
+          // 2. waiting_queue, courts, ready_queue, resting_queue 동시 삭제
+          const [wqDel, cDel, rqDel, rstDel] = await Promise.all([
             db.from('waiting_queue').delete().not('id', 'is', null),
             db.from('courts').delete().not('id', 'is', null),
             db.from('ready_queue').delete().not('id', 'is', null),
+            db.from('resting_queue').delete().not('id', 'is', null),
           ]);
           if (wqDel.error) { console.error('[sync] waiting_queue 삭제 오류:', wqDel.error); return; }
           if (cDel.error) { console.error('[sync] courts 삭제 오류:', cDel.error); return; }
           if (rqDel.error) { console.error('[sync] ready_queue 삭제 오류:', rqDel.error); }
+          if (rstDel.error) { console.error('[sync] resting_queue 삭제 오류:', rstDel.error); }
 
           // 3. courts 테이블 동기화 (DB는 1-indexed)
           if (courts.length > 0) {
@@ -1689,6 +1728,18 @@
             if (rqErr) { console.error('[sync] ready_queue 삽입 오류:', rqErr); }
           }
 
+          // 8. resting_queue 동기화
+          const restingRows = people.filter(p => p.status === 'resting').map(p => ({
+            member_id: p.dbId || null,
+            name: p.name,
+            gender: p.gender,
+            level: p.level,
+          }));
+          if (restingRows.length > 0) {
+            const { error: rstErr } = await db.from('resting_queue').insert(restingRows);
+            if (rstErr) { console.error('[sync] resting_queue 삽입 오류:', rstErr); }
+          }
+
           localStorage.setItem('courtCount', courtCount);
         } catch (err) {
           console.error('[sync] DB 동기화 오류:', err);
@@ -1697,12 +1748,13 @@
 
       /* ────── DB: 페이지 로드 시 상태 복원 ────── */
       async function loadState() {
-        const [wqCheck, caCheck, cCheck, spCheck, rqCheck] = await Promise.all([
+        const [wqCheck, caCheck, cCheck, spCheck, rqCheck, rstCheck] = await Promise.all([
           db.from('waiting_queue').select('id').limit(1),
           db.from('court_assignments').select('id').limit(1),
           db.from('courts').select('id').limit(1),
           db.from('session_participants').select('id').limit(1),
           db.from('ready_queue').select('id').limit(1),
+          db.from('resting_queue').select('id').limit(1),
         ]);
 
         if (wqCheck.error) console.error('[loadState] waiting_queue 접근 오류:', wqCheck.error);
@@ -1710,6 +1762,7 @@
         if (cCheck.error)  console.error('[loadState] courts 접근 오류:', cCheck.error);
         if (spCheck.error) console.error('[loadState] session_participants 접근 오류:', spCheck.error);
         if (rqCheck.error) console.warn('[loadState] ready_queue 접근 오류 (테이블 미생성 가능):', rqCheck.error);
+        if (rstCheck.error) console.warn('[loadState] resting_queue 접근 오류:', rstCheck.error);
 
         if (wqCheck.error || caCheck.error || cCheck.error) {
           render();
@@ -1722,11 +1775,16 @@
           ? db.from('ready_queue').select('*').order('group_number').order('created_at')
           : Promise.resolve({ data: [], error: null });
 
-        const [{ data: wqData, error: wqErr }, { data: caData, error: caErr }, { data: cData, error: cErr }, { data: rqData }] = await Promise.all([
+        const rstQuery = !rstCheck.error
+          ? db.from('resting_queue').select('*').order('created_at')
+          : Promise.resolve({ data: [], error: null });
+
+        const [{ data: wqData, error: wqErr }, { data: caData, error: caErr }, { data: cData, error: cErr }, { data: rqData }, { data: rstData }] = await Promise.all([
           db.from('waiting_queue').select('*').order('created_at'),
           caQuery,
           db.from('courts').select('*').order('court_number'),
           rqQuery,
+          rstQuery,
         ]);
 
         if (wqErr) { console.error('[loadState] waiting_queue 조회 오류:', wqErr); }
@@ -1737,6 +1795,20 @@
         pool = [];
         courts = [];
         nextId = 1;
+
+        (rstData || []).forEach((row) => {
+          const p = {
+            id: nextId++,
+            dbId: row.member_id || null,
+            name: row.name,
+            gender: row.gender || '남',
+            level: row.level || 'A',
+            memberType: row.member_id ? '회원' : '게스트',
+            status: 'resting',
+            groupNo: null,
+          };
+          people.push(p);
+        });
 
         (wqData || []).forEach((row) => {
           const p = {
@@ -1983,8 +2055,11 @@
           }).join('');
         }
 
-        // ── 대기 인원 그리드 (성별→급수 정렬) ──
-        const poolPeople = sortedPeople(people.filter((p) => p.status === 'available'));
+        // ── 대기 인원 그리드 (성별→급수 정렬, 휴식 인원은 맨 뒤) ──
+        const poolPeople = [
+          ...sortedPeople(people.filter((p) => p.status === 'available')),
+          ...sortedPeople(people.filter((p) => p.status === 'resting')),
+        ];
         const assignedPeople = sortedPeople(people.filter((p) => p.status === 'team-a' || p.status === 'team-b'));
 
         document.getElementById('count-pool').textContent = `${poolPeople.length}명`;
@@ -1999,15 +2074,15 @@
           poolGrid.innerHTML = poolPeople
             .map((p) => {
               const gc = p.gender === '남' ? 'm' : 'f';
+              const isResting = p.status === 'resting';
               return `<div
-                    class="p-badge available gender-${gc}${guestClass(p)}"
+                    class="p-badge ${isResting ? 'resting' : 'available'} gender-${gc}${guestClass(p)}"
                     data-id="${p.id}"
-                    draggable="true"
-                    ondragstart="onDragStart(event,${p.id})"
-                    ondragend="onDragEnd()"
-                    onclick="onClickPoolBadge(${p.id})"
-                    ondblclick="removePerson(${p.id})"
-                    title="클릭: 선택 후 빈 자리 클릭으로 배정  |  드래그: 배정  |  더블클릭: 삭제"
+                    ${isResting ? '' : 'draggable="true"'}
+                    ${isResting ? '' : `ondragstart="onDragStart(event,${p.id})" ondragend="onDragEnd()"`}
+                    onclick="onPoolBadgeClick(event,${p.id})"
+                    ${isResting ? '' : `ondblclick="removePerson(${p.id})"`}
+                    title="${isResting ? 'Shift+클릭: 휴식 해제' : '클릭: 선택 후 빈 자리 클릭으로 배정  |  드래그: 배정  |  더블클릭: 삭제  |  Shift+클릭: 휴식'}"
                 >${displayName(p)}${guestSuffix(p)}${infoTag(p)}</div>`;
             })
             .join('');
@@ -2096,6 +2171,7 @@
                             title="클릭: 코트 선택 후 다른 코트 탭 → 교체  |  드래그: 코트 인원 교체  |  더블클릭: 전원 대기로 복귀">
                             <span>${ci + 1}번 </span>
                             <div class="court-hdr-right">
+                              ${userRole === 'admin' ? `<button class="btn-end-game" onclick="event.stopPropagation(); endGame(${ci})" title="게임 종료 (횟수 증가)">게임 종료</button>` : ''}
                             </div>
                         </div>
                         <div class="court-body">

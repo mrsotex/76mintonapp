@@ -13,8 +13,8 @@
   </head>
   <body>
     <!-- 초기화 확인 모달 -->
-    <div id="modal-overlay" onclick="closeModal()">
-      <div class="modal" onclick="event.stopPropagation()">
+    <div id="modal-overlay" onmousedown="this._mdt=event.target" onclick="this._mdt===this&&closeModal()">
+      <div class="modal" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()">
         <div class="modal-icon">⚠️</div>
         <h3>초기화 하시겠습니까?</h3>
         <p>전체 인원 및 코트 배정 정보가<br />모두 삭제됩니다.</p>
@@ -26,8 +26,8 @@
     </div>
 
     <!-- 비밀번호 확인 모달 -->
-    <div id="pw-modal-overlay" onclick="closePwModal()">
-      <div class="modal" onclick="event.stopPropagation()">
+    <div id="pw-modal-overlay" onmousedown="this._mdt=event.target" onclick="this._mdt===this&&closePwModal()">
+      <div class="modal" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()">
         <div class="modal-icon">🔒</div>
         <h3>비밀번호를 입력하세요</h3>
         <p>이 작업은 비밀번호가 필요합니다.</p>
@@ -56,14 +56,15 @@
         <span id="role-label"></span>
         <button class="btn-member-mgmt" id="btn-member-mgmt" onclick="openMemberMgmt()">회원관리</button>
         <button class="btn-game-count" onclick="openGameCountMgmt()">게임횟수</button>
+        <button class="btn-matching" onclick="openMatchingMatrix()">매칭현황</button>
         <button class="btn-logout" onclick="logout()">로그아웃</button>
         <span id="refresh-timer" class="refresh-timer"></span>
       </div>
     </div>
 
     <!-- 회원관리 모달 -->
-    <div id="member-mgmt-overlay" class="member-mgmt-overlay" style="display:none" onclick="closeMemberMgmt()">
-      <div class="member-mgmt-modal" onclick="event.stopPropagation()">
+    <div id="member-mgmt-overlay" class="member-mgmt-overlay" style="display:none" onmousedown="this._mdt=event.target" onclick="this._mdt===this&&closeMemberMgmt()">
+      <div class="member-mgmt-modal" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()">
         <div class="member-mgmt-header">
           <h2>회원 관리</h2>
           <button class="btn-close-mgmt" onclick="closeMemberMgmt()">✕</button>
@@ -140,9 +141,20 @@
       </div>
     </div>
 
+    <!-- 매칭 현황 모달 -->
+    <div id="matching-matrix-overlay" class="member-mgmt-overlay" style="display:none" onmousedown="this._mdt=event.target" onclick="this._mdt===this&&closeMatchingMatrix()">
+      <div class="member-mgmt-modal matching-matrix-modal" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()">
+        <div class="member-mgmt-header">
+          <h2>매칭 현황</h2>
+          <button class="btn-close-mgmt" onclick="closeMatchingMatrix()">✕</button>
+        </div>
+        <div id="matching-matrix-content"></div>
+      </div>
+    </div>
+
     <!-- 게임 횟수 관리 모달 -->
-    <div id="game-count-overlay" class="member-mgmt-overlay" style="display:none" onclick="closeGameCountMgmt()">
-      <div class="member-mgmt-modal game-count-modal" onclick="event.stopPropagation()">
+    <div id="game-count-overlay" class="member-mgmt-overlay" style="display:none" onmousedown="this._mdt=event.target" onclick="this._mdt===this&&closeGameCountMgmt()">
+      <div class="member-mgmt-modal game-count-modal" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()">
         <div class="member-mgmt-header">
           <h2>게임 횟수 관리</h2>
           <button class="btn-close-mgmt" onclick="closeGameCountMgmt()">✕</button>

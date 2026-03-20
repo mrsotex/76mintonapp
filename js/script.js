@@ -57,6 +57,49 @@
       /* ── 게임 횟수 트래킹 ── */
       let gameCountMap = {}; // { stableKey: count } 현재 날짜 기준
 
+      /* ── 페어 매칭 트래킹 ── */
+      let pairCountMap = {}; // { "keyA:keyB": count } 같은 코트에서 함께 게임한 횟수 (날짜 기준)
+
+      function pairKey(p1, p2) {
+        const k1 = gcKey(p1), k2 = gcKey(p2);
+        return k1 < k2 ? `${k1}:${k2}` : `${k2}:${k1}`;
+      }
+      function getPairCount(p1, p2) {
+        return pairCountMap[pairKey(p1, p2)] || 0;
+      }
+      function incrementPairCounts(players) {
+        for (let i = 0; i < players.length; i++) {
+          for (let j = i + 1; j < players.length; j++) {
+            const k = pairKey(players[i], players[j]);
+            pairCountMap[k] = (pairCountMap[k] || 0) + 1;
+          }
+        }
+        savePairCount();
+      }
+      async function savePairCount() {
+        const date = document.getElementById('court-date')?.value || '';
+        if (!date) return;
+        const rows = Object.entries(pairCountMap).map(([key, count]) => {
+          const [player_a, player_b] = key.split(':');
+          return { date, player_a, player_b, game_count: count };
+        });
+        await db.from('pair_games').delete().eq('date', date);
+        if (rows.length > 0) {
+          await db.from('pair_games').insert(rows);
+        }
+      }
+      async function loadPairCount() {
+        const date = document.getElementById('court-date')?.value || '';
+        if (!date) { pairCountMap = {}; return; }
+        const { data, error } = await db.from('pair_games').select('player_a, player_b, game_count').eq('date', date);
+        if (!error && data) {
+          pairCountMap = {};
+          data.forEach(row => { pairCountMap[`${row.player_a}:${row.player_b}`] = row.game_count; });
+        } else {
+          pairCountMap = {};
+        }
+      }
+
       function gcKey(p) {
         return p.dbId ? String(p.dbId) : p.name;
       }
@@ -90,7 +133,7 @@
         }
       }
       async function onCourtDateChange() {
-        await loadGameCount();
+        await Promise.all([loadGameCount(), loadPairCount()]);
         render();
       }
 
@@ -149,6 +192,71 @@
         render();
       }
 
+      /* ── 매칭 현황 팝업 ── */
+      function openMatchingMatrix() {
+        renderMatchingMatrix();
+        document.getElementById('matching-matrix-overlay').style.display = 'flex';
+      }
+      function closeMatchingMatrix() {
+        document.getElementById('matching-matrix-overlay').style.display = 'none';
+      }
+      function renderMatchingMatrix() {
+        const container = document.getElementById('matching-matrix-content');
+        if (!people.length) {
+          container.innerHTML = '<div class="gc-empty">현재 참여 인원이 없습니다.</div>';
+          return;
+        }
+        const sorted = [...people].sort((a, b) => displayName(a).localeCompare(displayName(b), 'ko'));
+        const maxCount = sorted.reduce((m, p1) => {
+          return sorted.reduce((m2, p2) => Math.max(m2, getPairCount(p1, p2)), m);
+        }, 0);
+
+        let html = '<div class="mm-scroll-wrap"><table class="mm-table"><thead><tr><th></th>';
+        sorted.forEach(p => {
+          html += `<th class="mm-col-header" title="${displayName(p)}">${displayName(p)}</th>`;
+        });
+        html += '</tr></thead><tbody>';
+        sorted.forEach((p1, ri) => {
+          html += `<tr><th class="mm-row-header">${displayName(p1)}<span class="mm-gc">${getGameCount(p1)}회</span></th>`;
+          sorted.forEach((p2, ci) => {
+            if (ri === ci) {
+              html += '<td class="mm-cell mm-self">—</td>';
+            } else {
+              const cnt = getPairCount(p1, p2);
+              let cls = 'mm-cell';
+              if (cnt === 0) cls += ' mm-zero';
+              else if (maxCount > 0) {
+                const ratio = cnt / maxCount;
+                if (ratio >= 0.67) cls += ' mm-high';
+                else if (ratio >= 0.34) cls += ' mm-mid';
+                else cls += ' mm-low';
+              }
+              html += `<td class="${cls}" title="${displayName(p1)} + ${displayName(p2)}: ${cnt}회">${cnt}</td>`;
+            }
+          });
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+
+        // 범례 + 미만난 쌍 목록
+        const zeroPairs = [];
+        for (let i = 0; i < sorted.length; i++) {
+          for (let j = i + 1; j < sorted.length; j++) {
+            if (getPairCount(sorted[i], sorted[j]) === 0) {
+              zeroPairs.push(`${displayName(sorted[i])} + ${displayName(sorted[j])}`);
+            }
+          }
+        }
+        html += '<div class="mm-legend"><span class="mm-dot mm-zero"></span>아직 함께 게임 안 함 &nbsp; <span class="mm-dot mm-low"></span>적음 &nbsp; <span class="mm-dot mm-mid"></span>중간 &nbsp; <span class="mm-dot mm-high"></span>많음</div>';
+        if (zeroPairs.length > 0) {
+          html += `<div class="mm-zero-list"><strong>아직 함께 게임 안 한 조합 (${zeroPairs.length}쌍):</strong><div class="mm-zero-pairs">${zeroPairs.map(s => `<span class="mm-pair-chip">${s}</span>`).join('')}</div></div>`;
+        } else {
+          html += '<div class="mm-zero-list mm-all-played">모든 인원이 최소 1회 함께 게임했습니다!</div>';
+        }
+
+        container.innerHTML = html;
+      }
+
       async function initCourtDate() {
         const el = document.getElementById('court-date');
         if (!el) return;
@@ -157,7 +265,7 @@
         const mm = String(today.getMonth() + 1).padStart(2, '0');
         const dd = String(today.getDate()).padStart(2, '0');
         el.value = `${yyyy}-${mm}-${dd}`;
-        await loadGameCount();
+        await Promise.all([loadGameCount(), loadPairCount()]);
       }
 
       function applyRole() {
@@ -516,12 +624,14 @@
         if (userRole !== 'admin') return;
         const court = courts[courtIdx];
         if (!court) return;
-        [...court.teamA, ...court.teamB].forEach((p) => {
+        const players = [...court.teamA, ...court.teamB];
+        players.forEach((p) => {
           incrementGameCount(p);
           p.status = 'available';
           p.groupNo = null;
           pool.push(p);
         });
+        incrementPairCounts(players);
         court.teamA = [];
         court.teamB = [];
         render();
@@ -793,18 +903,21 @@
         const emptyB = 2 - group.teamB.length;
         const totalEmpty = emptyA + emptyB;
         if (totalEmpty === 0) return;
-        const shuffled = shuffle(pool);
-        const toAssign = shuffled.slice(0, totalEmpty);
-        let idx = 0;
-        while (group.teamA.length < 2 && idx < toAssign.length) {
-          const p = toAssign[idx++];
-          _removePerson(p);
-          _placePerson(p, 'ready-a', null, groupIdx);
-        }
-        while (group.teamB.length < 2 && idx < toAssign.length) {
-          const p = toAssign[idx++];
-          _removePerson(p);
-          _placePerson(p, 'ready-b', null, groupIdx);
+
+        if (totalEmpty === 4 && pool.length >= 4) {
+          const four = pickBestFour(pool);
+          const split = optimalTeamSplit(four);
+          split.teamA.forEach(p => { _removePerson(p); _placePerson(p, 'ready-a', null, groupIdx); });
+          split.teamB.forEach(p => { _removePerson(p); _placePerson(p, 'ready-b', null, groupIdx); });
+        } else {
+          const toAssign = prioritySort(pool).slice(0, Math.min(totalEmpty, pool.length));
+          let idx = 0;
+          while (group.teamA.length < 2 && idx < toAssign.length) {
+            const p = toAssign[idx++]; _removePerson(p); _placePerson(p, 'ready-a', null, groupIdx);
+          }
+          while (group.teamB.length < 2 && idx < toAssign.length) {
+            const p = toAssign[idx++]; _removePerson(p); _placePerson(p, 'ready-b', null, groupIdx);
+          }
         }
         render();
         syncState();
@@ -819,21 +932,52 @@
         const emptyB = 2 - group.teamB.length;
         const totalEmpty = emptyA + emptyB;
         if (totalEmpty === 0) return;
-        const shuffled = prioritySort(genderPool);
-        const toAssign = shuffled.slice(0, totalEmpty);
-        let idx = 0;
-        while (group.teamA.length < 2 && idx < toAssign.length) {
-          const p = toAssign[idx++];
-          _removePerson(p);
-          _placePerson(p, 'ready-a', null, groupIdx);
-        }
-        while (group.teamB.length < 2 && idx < toAssign.length) {
-          const p = toAssign[idx++];
-          _removePerson(p);
-          _placePerson(p, 'ready-b', null, groupIdx);
+
+        if (totalEmpty === 4 && genderPool.length >= 4) {
+          const four = pickBestFour(genderPool);
+          const split = optimalTeamSplit(four);
+          split.teamA.forEach(p => { _removePerson(p); _placePerson(p, 'ready-a', null, groupIdx); });
+          split.teamB.forEach(p => { _removePerson(p); _placePerson(p, 'ready-b', null, groupIdx); });
+        } else {
+          const toAssign = prioritySort(genderPool).slice(0, Math.min(totalEmpty, genderPool.length));
+          let idx = 0;
+          while (group.teamA.length < 2 && idx < toAssign.length) {
+            const p = toAssign[idx++]; _removePerson(p); _placePerson(p, 'ready-a', null, groupIdx);
+          }
+          while (group.teamB.length < 2 && idx < toAssign.length) {
+            const p = toAssign[idx++]; _removePerson(p); _placePerson(p, 'ready-b', null, groupIdx);
+          }
         }
         render();
         syncState();
+      }
+
+      /* 혼복 전용: 최적 (남2 + 여2) 조합 선택 후 팀 배분 */
+      function pickBestMixed(males, females) {
+        males = shuffle(males);
+        females = shuffle(females);
+        let bestScore = Infinity, bestM = null, bestF = null;
+        for (let mi = 0; mi < males.length - 1; mi++) {
+          for (let mj = mi + 1; mj < males.length; mj++) {
+            for (let fi = 0; fi < females.length - 1; fi++) {
+              for (let fj = fi + 1; fj < females.length; fj++) {
+                const score = comboScore([males[mi], males[mj], females[fi], females[fj]]);
+                if (score < bestScore) {
+                  bestScore = score;
+                  bestM = [males[mi], males[mj]];
+                  bestF = [females[fi], females[fj]];
+                }
+              }
+            }
+          }
+        }
+        if (!bestM) return null;
+        const [m1, m2] = bestM, [f1, f2] = bestF;
+        const s1 = getPairCount(m1, f1) + getPairCount(m2, f2);
+        const s2 = getPairCount(m1, f2) + getPairCount(m2, f1);
+        return s1 <= s2
+          ? { teamA: [m1, f1], teamB: [m2, f2] }
+          : { teamA: [m1, f2], teamB: [m2, f1] };
       }
 
       function assignReadyGroupMixed(groupIdx) {
@@ -842,6 +986,22 @@
         const males = prioritySort(pool.filter(p => p.gender === '남'));
         const females = prioritySort(pool.filter(p => p.gender === '여'));
         if (males.length === 0 || females.length === 0) return;
+        const emptyA = 2 - group.teamA.length;
+        const emptyB = 2 - group.teamB.length;
+        const totalEmpty = emptyA + emptyB;
+        if (totalEmpty === 0) return;
+
+        if (totalEmpty === 4 && males.length >= 2 && females.length >= 2) {
+          const result = pickBestMixed(males, females);
+          if (result) {
+            result.teamA.forEach(p => { _removePerson(p); _placePerson(p, 'ready-a', null, groupIdx); });
+            result.teamB.forEach(p => { _removePerson(p); _placePerson(p, 'ready-b', null, groupIdx); });
+            render(); syncState();
+            return;
+          }
+        }
+
+        // 부분 채우기: 기존 로직
         const toAssign = [];
         let mi = 0, fi = 0;
         const fillTeam = (emptyCount, team) => {
@@ -854,8 +1014,8 @@
             needMale = !needMale;
           }
         };
-        fillTeam(2 - group.teamA.length, 'A');
-        fillTeam(2 - group.teamB.length, 'B');
+        fillTeam(emptyA, 'A');
+        fillTeam(emptyB, 'B');
         for (const { person, team } of toAssign) {
           _removePerson(person);
           _placePerson(person, team === 'A' ? 'ready-a' : 'ready-b', null, groupIdx);
@@ -865,23 +1025,95 @@
       }
 
       /* ────── 랜덤 배정: 대기 인원 → 기존 대기조 빈 슬롯만 채우기 ────── */
+      /* ── 페어 점수 계산: 4명 조합의 총 페어 카운트 합 ── */
+      function comboScore(players) {
+        let pairScore = 0, gameScore = 0;
+        for (let i = 0; i < players.length; i++) {
+          gameScore += getGameCount(players[i]);
+          for (let j = i + 1; j < players.length; j++) {
+            pairScore += getPairCount(players[i], players[j]);
+          }
+        }
+        return gameScore * 1000 + pairScore;
+      }
+
+      /* ── 풀에서 최적 4명 선택 (페어 다양성 + 게임 횟수 균등) ── */
+      function pickBestFour(candidates) {
+        if (candidates.length <= 4) return [...candidates];
+        candidates = shuffle(candidates);
+        const n = candidates.length;
+        let bestScore = Infinity, bestCombo = null;
+        for (let a = 0; a < n - 3; a++) {
+          for (let b = a + 1; b < n - 2; b++) {
+            for (let c = b + 1; c < n - 1; c++) {
+              for (let d = c + 1; d < n; d++) {
+                const combo = [candidates[a], candidates[b], candidates[c], candidates[d]];
+                const score = comboScore(combo);
+                if (score < bestScore) { bestScore = score; bestCombo = combo; }
+              }
+            }
+          }
+        }
+        return bestCombo || candidates.slice(0, 4);
+      }
+
+      /* ── 4명을 A팀/B팀으로 최적 분배 (파트너를 덜 만난 조합 우선) ── */
+      function optimalTeamSplit(four) {
+        const [a, b, c, d] = four;
+        const splits = [
+          { teamA: [a, b], teamB: [c, d] },
+          { teamA: [a, c], teamB: [b, d] },
+          { teamA: [a, d], teamB: [b, c] },
+        ];
+        let best = splits[0];
+        let bestScore = getPairCount(a, b) + getPairCount(c, d);
+        for (let i = 1; i < splits.length; i++) {
+          const s = splits[i];
+          const score = getPairCount(s.teamA[0], s.teamA[1]) + getPairCount(s.teamB[0], s.teamB[1]);
+          if (score < bestScore) { bestScore = score; best = s; }
+        }
+        return best;
+      }
+
       function assignCourts() {
         if (pool.length === 0) return;
         const existingSlots = readyGroups.reduce((s, g) => s + (4 - g.teamA.length - g.teamB.length), 0);
         if (existingSlots === 0) return;
 
-        const shuffled = prioritySort(pool);
-        let idx = 0;
+        let remaining = [...pool];
 
-        for (let gi = 0; gi < readyGroups.length && idx < shuffled.length; gi++) {
+        for (let gi = 0; gi < readyGroups.length; gi++) {
           const group = readyGroups[gi];
-          while (group.teamA.length < 2 && idx < shuffled.length) {
-            const p = shuffled[idx++];
+          const emptyA = 2 - group.teamA.length;
+          const emptyB = 2 - group.teamB.length;
+          const totalEmpty = emptyA + emptyB;
+          if (totalEmpty === 0 || remaining.length === 0) continue;
+
+          let toAssign;
+          if (totalEmpty === 4 && remaining.length >= 4) {
+            // 빈 대기조: 페어 다양성 최적 4명 선택
+            const four = pickBestFour(remaining);
+            const split = optimalTeamSplit(four);
+            const assignedIds = new Set(four.map(p => p.id));
+            remaining = remaining.filter(p => !assignedIds.has(p.id));
+            split.teamA.forEach(p => { _removePerson(p); _placePerson(p, 'ready-a', null, gi); });
+            split.teamB.forEach(p => { _removePerson(p); _placePerson(p, 'ready-b', null, gi); });
+            continue;
+          } else {
+            // 부분 채우기: 게임 횟수 우선 순서로
+            toAssign = prioritySort(remaining).slice(0, Math.min(totalEmpty, remaining.length));
+            const assignedIds = new Set(toAssign.map(p => p.id));
+            remaining = remaining.filter(p => !assignedIds.has(p.id));
+          }
+
+          let idx = 0;
+          while (group.teamA.length < 2 && idx < toAssign.length) {
+            const p = toAssign[idx++];
             _removePerson(p);
             _placePerson(p, 'ready-a', null, gi);
           }
-          while (group.teamB.length < 2 && idx < shuffled.length) {
-            const p = shuffled[idx++];
+          while (group.teamB.length < 2 && idx < toAssign.length) {
+            const p = toAssign[idx++];
             _removePerson(p);
             _placePerson(p, 'ready-b', null, gi);
           }
@@ -1895,7 +2127,7 @@
           }
         }
 
-        await loadGameCount();
+        await Promise.all([loadGameCount(), loadPairCount()]);
         render();
       }
 
